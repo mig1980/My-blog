@@ -1,14 +1,41 @@
 <header class="border-b border-gray-800 py-6">
     <div class="container mx-auto px-4">
         <div class="flex items-center justify-between">
-            <a href="{{rootPath}}index.html" class="text-xl font-bold tracking-tighter">
-                Quantum<span class="text-purple-500">Investor</span> Digest
+            <a href="{{rootPath}}index.html" class="flex items-center gap-3 text-xl font-bold tracking-tighter">
+                <img src="{{rootPath}}Media/Full-Logo.webp" alt="Quantum Investor Digest Logo" width="100" height="100" class="logo-image">
+                <span>Quantum<span class="text-purple-500">Investor</span> Digest</span>
             </a>
-            <nav class="flex items-center space-x-6 text-sm" aria-label="Primary">
+            
+            <!-- Desktop Navigation -->
+            <nav class="desktop-nav flex items-center space-x-6" aria-label="Primary">
                 <a href="{{rootPath}}index.html" class="text-gray-400 hover:text-white transition-colors duration-200">Home</a>
                 <a href="{{rootPath}}Posts/posts.html" class="text-gray-400 hover:text-white transition-colors duration-200">Blog</a>
                 <a href="{{rootPath}}about.html" class="text-gray-400 hover:text-white transition-colors duration-200">About</a>
             </nav>
+
+            <!-- Mobile Menu Button -->
+            <button id="mobile-menu-button" class="mobile-menu-button flex flex-col justify-center items-center" aria-label="Toggle mobile menu" aria-expanded="false">
+                <span class="hamburger-line"></span>
+                <span class="hamburger-line"></span>
+                <span class="hamburger-line"></span>
+            </button>
         </div>
+    </div>
+
+    <!-- Mobile Menu Overlay -->
+    <div id="mobile-menu-overlay" class="mobile-menu-overlay" aria-hidden="true">
+        <div class="mobile-menu-backdrop"></div>
+        <nav class="mobile-menu-panel" aria-label="Mobile navigation">
+            <button id="mobile-menu-close" class="mobile-menu-close" aria-label="Close mobile menu">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+            <div class="mobile-menu-links">
+                <a href="{{rootPath}}index.html" class="mobile-menu-link">Home</a>
+                <a href="{{rootPath}}Posts/posts.html" class="mobile-menu-link">Blog</a>
+                <a href="{{rootPath}}about.html" class="mobile-menu-link">About</a>
+            </div>
+        </nav>
     </div>
 </header>

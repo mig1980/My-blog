@@ -36,9 +36,11 @@
     }
 
     // Initialize when DOM is ready
-    function init() {
+    async function init() {
         const templates = document.querySelectorAll('[data-template]');
-        templates.forEach(loadTemplate);
+        await Promise.all(Array.from(templates).map(loadTemplate));
+        // Dispatch custom event after all templates loaded
+        document.dispatchEvent(new Event('templatesLoaded'));
     }
 
     // Run on DOM ready
