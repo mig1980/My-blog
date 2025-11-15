@@ -129,7 +129,8 @@ My-blog/
    python scripts/portfolio_automation.py --data-source alphavantage --api-key ""
    
    # Specify week number and custom eval date
-   python scripts/portfolio_automation.py --week 6 --eval-date 2025-11-21
+   # Example specifying a future week (adjust number/date as needed)
+   python scripts/portfolio_automation.py --week 5 --eval-date 2025-11-14
    
    # Use different AI model
    python scripts/portfolio_automation.py --model gpt-4-turbo

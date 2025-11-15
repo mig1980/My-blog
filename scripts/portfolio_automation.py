@@ -14,6 +14,9 @@ from openai import OpenAI
 import re
 import time
 import requests
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
+import os
+import io
 
 # Configure paths
 REPO_ROOT = Path(__file__).parent.parent
@@ -22,8 +25,21 @@ POSTS_DIR = REPO_ROOT / "Posts"
 PROMPT_DIR = REPO_ROOT / "Prompt"
 ARCHIVE_DIR = DATA_DIR / "archive"
 
+# Unified CSP policy for all pages
+CSP_POLICY = (
+    "default-src 'self'; "
+    "script-src 'self' 'unsafe-inline'; "
+    "style-src 'self' 'unsafe-inline'; "
+    "img-src 'self' data: https:; "
+    "font-src 'self' data:; "
+    "connect-src 'self'; "
+    "frame-ancestors 'self'; "
+    "base-uri 'self'; "
+    "form-action 'self';"
+)
+
 class PortfolioAutomation:
-    def __init__(self, week_number=None, api_key=None, model="gpt-4-turbo-preview", data_source="ai", alphavantage_key=None, eval_date=None):
+    def __init__(self, week_number=None, api_key=None, model="gpt-4-turbo-preview", data_source="ai", alphavantage_key=None, eval_date=None, palette="default"):
         self.week_number = week_number or self.detect_next_week()
         self.api_key = api_key or os.getenv('OPENAI_API_KEY')
         self.model = model
@@ -32,6 +48,7 @@ class PortfolioAutomation:
         self.client = None
         self.ai_enabled = False
         self.eval_date = None
+        self.palette = palette  # theme palette selector ("default", "alt", etc.)
         if eval_date:
             try:
                 datetime.strptime(eval_date, '%Y-%m-%d')
@@ -196,6 +213,16 @@ class PortfolioAutomation:
             json.dump(self.master_json, f, indent=2)
         
         print(f"✓ Prompt A completed - master.json updated for Week {self.week_number}")
+        # Generate hero image then snippet share card immediately after data update
+        try:
+            self.generate_hero_image()
+        except Exception as e:
+            print(f"⚠️ Hero image generation failed: {e}")
+        # Generate snippet share card (social preview)
+        try:
+            self.generate_snippet_card()
+        except Exception as e:
+            print(f"⚠️ Snippet card generation failed: {e}")
         return self.master_json
 
     # ===================== ALPHA VANTAGE DATA ENGINE =====================
@@ -443,7 +470,237 @@ class PortfolioAutomation:
 
         self.master_json = updated_master
         print(f"✓ Alpha Vantage data engine completed - master.json updated for Week {self.week_number}")
+        # Generate hero image then snippet share card for alphavantage path
+        try:
+            self.generate_hero_image()
+        except Exception as e:
+            print(f"⚠️ Hero image generation failed: {e}")
+        try:
+            self.generate_snippet_card()
+        except Exception as e:
+            print(f"⚠️ Snippet card generation failed: {e}")
         return updated_master
+
+    # ===================== SNIPPET CARD GENERATION (Pillow) =====================
+    def _font(self, size: int):
+        candidates = [
+            Path("C:/Windows/Fonts/SegoeUI-Semibold.ttf"),
+            Path("C:/Windows/Fonts/SegoeUI.ttf"),
+            Path("C:/Windows/Fonts/Arial.ttf"),
+            Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")
+        ]
+        face = None
+        for c in candidates:
+            if c.exists():
+                face = str(c)
+                break
+        try:
+            return ImageFont.truetype(face or "Arial", size=size)
+        except Exception:
+            return ImageFont.load_default()
+
+    def generate_snippet_card(self):
+        """Create 1200x630 PNG snippet card using latest master_json metrics."""
+        if not self.master_json:
+            raise ValueError("master_json not loaded")
+        width, height = 1200, 630
+        padding = 72
+        # Build radial purple gradient background
+        base = Image.new('RGBA', (width, height), (10,10,10,255))
+        grad = Image.new('L', (width, height))
+        cx, cy = width*0.4, height*0.35
+        maxd = (width**2 + height**2)**0.5
+        pix = grad.load()
+        for y in range(height):
+            for x in range(width):
+                d = ((x-cx)**2 + (y-cy)**2)**0.5
+                v = max(0, 255 - int((d/maxd)*255))
+                pix[x,y] = v
+        grad = grad.filter(ImageFilter.GaussianBlur(160))
+        overlay = Image.new('RGBA', (width, height), (58,0,104,255))
+        overlay.putalpha(grad)
+        img = Image.alpha_composite(base, overlay)
+
+        # Metrics extraction
+        ph = self.master_json.get('portfolio_history', [])
+        spx = self.master_json.get('benchmarks', {}).get('sp500', {}).get('history', [])
+        if ph and spx:
+            lp = ph[-1]; ls = spx[-1]
+            week_str = f"{lp.get('weekly_pct'):.2f}%" if lp.get('weekly_pct') is not None else "--"
+            total_str = f"{lp.get('total_pct'):.2f}%" if lp.get('total_pct') is not None else "--"
+            alpha_str = "--"
+            if lp.get('total_pct') is not None and ls.get('total_pct') is not None:
+                alpha_val = lp['total_pct'] - ls['total_pct']
+                alpha_str = f"{alpha_val:.2f}%"
+        else:
+            week_str = total_str = alpha_str = "--"
+        inception = self.master_json.get('meta', {}).get('inception_date')
+        current_date = self.master_json.get('meta', {}).get('current_date')
+        date_range = f"{inception} → {current_date}" if inception and current_date else ""
+
+        d = ImageDraw.Draw(img)
+        # Badge
+        badge_text = f"Week {self.week_number}"; badge_font = self._font(36)
+        bbox = d.textbbox((0,0), badge_text, font=badge_font)
+        bw = bbox[2]-bbox[0]; bh = bbox[3]-bbox[1]
+        pad_x, pad_y = 28, 14
+        d.rounded_rectangle([padding, padding, padding + bw + pad_x*2, padding + bh + pad_y*2], radius=50, fill=(30,27,75,255))
+        d.text((padding+pad_x, padding+pad_y), badge_text, font=badge_font, fill=(230,230,255,255))
+        # Title
+        title_font = self._font(74)
+        title_text = f"AI Portfolio Weekly Performance"
+        d.text((padding, padding+bh+pad_y*2+34), title_text, font=title_font, fill=(255,255,255,240))
+        block_y = padding+bh+pad_y*2+34 + 110
+        metric_font = self._font(34)
+        label_font = self._font(14)
+        def draw_metric(x,label,value,color=(255,255,255,230)):
+            d.text((x, block_y), label.upper(), font=label_font, fill=(180,180,200,200))
+            d.text((x, block_y+22), value, font=metric_font, fill=color)
+        alpha_color = (74,222,128,255) if (not alpha_str.startswith('-') and alpha_str != '--') else (248,113,113,255)
+        draw_metric(padding, 'Week Change', week_str)
+        draw_metric(padding+420, 'Since Inception', total_str)
+        draw_metric(padding+840, 'Alpha vs SPX', alpha_str, alpha_color)
+        footer_font = self._font(26)
+        if date_range:
+            d.text((padding, height-padding-40), date_range, font=footer_font, fill=(190,190,190,230))
+        d.text((width-padding-330, height-padding-40), 'quantuminvestor.net', font=footer_font, fill=(190,190,210,230))
+
+        out_path = REPO_ROOT / 'Media' / f"W{self.week_number}-card.png"
+        out_path.parent.mkdir(exist_ok=True)
+        img.convert('RGB').save(out_path, format='PNG')
+        print(f"✓ Snippet card generated: {out_path}")
+
+    # ===================== HERO IMAGE GENERATION (Remote + Overlay) =====================
+    def generate_hero_image(self, query: str = "futuristic finance data"):
+        """Create 1200x800 WEBP hero image using remote provider or fallback gradient."""
+        if not self.master_json:
+            raise ValueError("master_json not loaded")
+        width, height = 1200, 800
+        padding = 64
+        # --- Metrics extraction ---
+        ph = self.master_json.get('portfolio_history', [])
+        spx = self.master_json.get('benchmarks', {}).get('sp500', {}).get('history', [])
+        if ph and spx:
+            lp = ph[-1]; ls = spx[-1]
+            week_str = f"{lp.get('weekly_pct'):.2f}%" if lp.get('weekly_pct') is not None else "--"
+            total_str = f"{lp.get('total_pct'):.2f}%" if lp.get('total_pct') is not None else "--"
+            alpha_str = "--"
+            if lp.get('total_pct') is not None and ls.get('total_pct') is not None:
+                alpha_val = lp['total_pct'] - ls['total_pct']
+                alpha_str = f"{alpha_val:.2f}%"
+        else:
+            week_str = total_str = alpha_str = "--"
+        inception = self.master_json.get('meta', {}).get('inception_date')
+        current_date = self.master_json.get('meta', {}).get('current_date')
+        date_range = f"{inception} → {current_date}" if inception and current_date else ""
+
+        # --- Providers ---
+        def fetch_pexels(q: str):
+            key = os.getenv('PEXELS_API_KEY');
+            if not key: return None
+            try:
+                resp = requests.get('https://api.pexels.com/v1/search', headers={'Authorization': key}, params={'query': q, 'orientation': 'landscape', 'per_page': 3}, timeout=10)
+                if resp.status_code != 200: return None
+                data = resp.json().get('photos', [])
+                for p in data:
+                    src = p.get('src', {}).get('large') or p.get('src', {}).get('original')
+                    if src:
+                        img_resp = requests.get(src, timeout=15)
+                        if img_resp.status_code == 200:
+                            return Image.open(io.BytesIO(img_resp.content)).convert('RGBA')
+            except Exception:
+                return None
+            return None
+        def fetch_pixabay(q: str):
+            key = os.getenv('PIXABAY_API_KEY');
+            if not key: return None
+            try:
+                resp = requests.get('https://pixabay.com/api/', params={'key': key, 'q': q, 'image_type': 'photo', 'orientation': 'horizontal', 'per_page': 3, 'safesearch': 'true'}, timeout=10)
+                if resp.status_code != 200: return None
+                hits = resp.json().get('hits', [])
+                for h in hits:
+                    src = h.get('largeImageURL') or h.get('webformatURL')
+                    if src:
+                        img_resp = requests.get(src, timeout=15)
+                        if img_resp.status_code == 200:
+                            return Image.open(io.BytesIO(img_resp.content)).convert('RGBA')
+            except Exception:
+                return None
+            return None
+        def fetch_lummi(q: str):
+            # Placeholder for future API
+            return None
+
+        providers = [fetch_pexels, fetch_pixabay, fetch_lummi]
+        remote = None
+        for provider in providers:
+            remote = provider(query)
+            if remote:
+                break
+
+        # --- Fallback gradient ---
+        if remote:
+            r_ratio = remote.width / remote.height
+            target_ratio = width / height
+            if r_ratio > target_ratio:
+                new_h = height
+                new_w = int(r_ratio * new_h)
+            else:
+                new_w = width
+                new_h = int(new_w / r_ratio)
+            resized = remote.resize((new_w, new_h), Image.Resampling.LANCZOS)
+            left = (new_w - width)//2; top = (new_h - height)//2
+            img = resized.crop((left, top, left+width, top+height)).convert('RGBA')
+            # Darken top region for text legibility
+            mask = Image.new('L', (width, height), 0)
+            dmask = ImageDraw.Draw(mask)
+            dmask.rectangle([0,0,width,int(height*0.55)], fill=150)
+            shadow = Image.new('RGBA', (width, height), (0,0,0,160)); shadow.putalpha(mask)
+            img = Image.alpha_composite(img, shadow)
+            source_note = 'remote'
+        else:
+            base = Image.new('RGBA', (width, height), (10,10,10,255))
+            grad = Image.new('L', (width, height))
+            cx, cy = width*0.5, height*0.4
+            maxd = (width**2 + height**2)**0.5
+            pix = grad.load()
+            for y in range(height):
+                for x in range(width):
+                    d = ((x-cx)**2 + (y-cy)**2)**0.5
+                    v = max(0, 255 - int((d/maxd)*255))
+                    pix[x,y] = v
+            grad = grad.filter(ImageFilter.GaussianBlur(200))
+            overlay = Image.new('RGBA', (width, height), (72,0,120,255)); overlay.putalpha(grad)
+            img = Image.alpha_composite(base, overlay)
+            source_note = 'fallback-gradient'
+
+        # --- Overlay text ---
+        draw = ImageDraw.Draw(img)
+        badge_text = f"Week {self.week_number}"; badge_font = self._font(40)
+        b_w, b_h = draw.textbbox((0,0), badge_text, font=badge_font)[2:]
+        bx_pad, by_pad = 30, 16
+        draw.rounded_rectangle([padding, padding, padding+b_w+bx_pad*2, padding+b_h+by_pad*2], radius=60, fill=(30,27,75,230))
+        draw.text((padding+bx_pad, padding+by_pad), badge_text, font=badge_font, fill=(235,235,255,255))
+        title_font = self._font(78)
+        title_text = "AI Portfolio Weekly Performance"
+        draw.text((padding, padding+b_h+by_pad*2+42), title_text, font=title_font, fill=(255,255,255,240))
+        base_y = padding+b_h+by_pad*2+42 + 120
+        label_font = self._font(16); metric_font = self._font(36)
+        def metric(x,label,val,color=(255,255,255,235)):
+            draw.text((x, base_y), label.upper(), font=label_font, fill=(180,180,200,200))
+            draw.text((x, base_y+26), val, font=metric_font, fill=color)
+        alpha_color = (74,222,128,255) if (not alpha_str.startswith('-') and alpha_str != '--') else (248,113,113,255)
+        metric(padding, 'Week Change', week_str)
+        metric(padding+400, 'Since Inception', total_str)
+        metric(padding+800, 'Alpha vs SPX', alpha_str, alpha_color)
+        footer_font = self._font(26)
+        if date_range:
+            draw.text((padding, height-padding-44), date_range, font=footer_font, fill=(200,200,205,240))
+        draw.text((width-padding-360, height-padding-44), 'quantuminvestor.net', font=footer_font, fill=(200,200,215,240))
+        out_path = REPO_ROOT / 'Media' / f"W{self.week_number}.webp"
+        out_path.parent.mkdir(exist_ok=True)
+        img.convert('RGB').save(out_path, format='WEBP', quality=90)
+        print(f"✓ Hero image generated: {out_path} ({source_note})")
     
     def run_prompt_b(self):
         """Prompt B: Narrative Writer - Generate HTML content"""
@@ -638,6 +895,96 @@ Generate the complete HTML file for Week {self.week_number}.
         # Extract final HTML
         html_match = re.search(r'<!DOCTYPE html>.*</html>', response, re.DOTALL | re.IGNORECASE)
         final_html = html_match.group(0) if html_match else response
+
+        # ================= STANDARD META HEAD REPLACEMENT =================
+        try:
+            final_html = self._apply_standard_head(final_html)
+        except Exception as e:
+            print(f"⚠️ Standard head template failed: {e}")
+
+        # ================= TLDR POST-PROCESS INJECTION =================
+        try:
+            # Remove any accidental TLDR inside narrative (defensive)
+            if 'id="tldrStrip"' in final_html:
+                # If model already injected correctly, skip further modifications
+                pass
+            else:
+                # Derive metrics from master_json (latest entry)
+                ph = self.master_json.get('portfolio_history', [])
+                spx_hist = self.master_json.get('benchmarks', {}).get('sp500', {}).get('history', [])
+                if ph and spx_hist:
+                    latest_portfolio = ph[-1]
+                    latest_spx = spx_hist[-1]
+                    week_change = latest_portfolio.get('weekly_pct')
+                    total_change = latest_portfolio.get('total_pct')
+                    alpha_val = None
+                    if latest_spx.get('total_pct') is not None and total_change is not None:
+                        alpha_val = round(total_change - latest_spx.get('total_pct'), 2)
+                    def fmt(v):
+                        return ('--' if v is None else f"{v:.2f}%")
+                    week_str = fmt(week_change)
+                    total_str = fmt(total_change)
+                    alpha_str = ('--' if alpha_val is None else f"{alpha_val:.2f}%")
+                    alpha_class = 'alpha-positive' if (alpha_val is not None and alpha_val >= 0) else 'alpha-negative'
+
+                    tldr_markup = (
+                        '\n<!-- TLDR STRIP Injected by automation -->\n'
+                        '<div id="tldrStrip" class="tldr-strip mb-10" aria-label="Weekly summary strip">\n'
+                        f'  <div class="tldr-metric"><span>Week Change</span><span id="tldrWeek">{week_str}</span></div>\n'
+                        f'  <div class="tldr-metric"><span>Since Inception</span><span id="tldrTotal">{total_str}</span></div>\n'
+                        f'  <div class="tldr-metric"><span>Alpha vs SPX (Total)</span><span id="tldrAlpha" class="{alpha_class}">{alpha_str}</span></div>\n'
+                        '</div>\n'
+                    )
+
+                    # Insert TLDR before narrative prose block (fallback if hero detection is complex)
+                    prose_pos = final_html.find('<div class="prose')
+                    if prose_pos != -1:
+                        final_html = final_html[:prose_pos] + tldr_markup + final_html[prose_pos:]
+
+                    # Ensure TLDR CSS present (append if missing)
+                    if '.tldr-strip' not in final_html:
+                        style_block_match = re.search(r'<style[^>]*>(.*?)</style>', final_html, re.DOTALL | re.IGNORECASE)
+                        tldr_css = (
+                            '\n/* TLDR Strip Styles (injected) */\n'
+                            '.tldr-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.75rem;background:#111;border:1px solid #222;padding:.75rem 1rem;border-radius:.75rem;position:sticky;top:0;z-index:30;}\n'
+                            '.tldr-metric{display:flex;flex-direction:column;align-items:flex-start;}\n'
+                            '.tldr-metric span:first-child{font-size:.6rem;text-transform:uppercase;letter-spacing:.08em;color:#888;}\n'
+                            '.tldr-metric span:last-child{font-weight:600;font-size:.95rem;}\n'
+                            '.alpha-positive{color:#4ade80;}\n'
+                            '.alpha-negative{color:#f87171;}\n'
+                        )
+                        if style_block_match:
+                            # Append before closing </style>
+                            start, end = style_block_match.span(1)
+                            final_html = final_html[:end] + tldr_css + final_html[end:]
+                        else:
+                            # Create a new style block in <head>
+                            head_close = final_html.lower().find('</head>')
+                            if head_close != -1:
+                                new_style = f'<style>{tldr_css}</style>\n'
+                                final_html = final_html[:head_close] + new_style + final_html[head_close:]
+
+                    # Add population script (dynamic fetch) if not already present
+                    if 'TLDR strip population' not in final_html and 'fetch(`../Data/W' not in final_html:
+                        week_num = self.week_number
+                        population_script = (
+                            '\n<script><!-- TLDR strip population (injected) -->\n'
+                            '(async function(){try{const w=' + str(week_num) + ';'
+                            'const r=await fetch(`../Data/W${w}/master.json`);if(!r.ok)return;const d=await r.json();'
+                            'const ph=d.portfolio_history||[];const spx=d.benchmarks?.sp500?.history||[];'
+                            'if(!ph.length||!spx.length)return;const lp=ph[ph.length-1];const ls=spx[spx.length-1];'
+                            'const wc=lp.weekly_pct!=null?lp.weekly_pct.toFixed(2)+"%":"--";'
+                            'const tc=lp.total_pct!=null?lp.total_pct.toFixed(2)+"%":"--";'
+                            'const av=(lp.total_pct-ls.total_pct);const ac=av.toFixed(2)+"%";'
+                            'const wEl=document.getElementById("tldrWeek");const tEl=document.getElementById("tldrTotal");const aEl=document.getElementById("tldrAlpha");'
+                            'if(wEl)wEl.textContent=wc;if(tEl)tEl.textContent=tc;if(aEl){aEl.textContent=ac;aEl.classList.add(av>=0?"alpha-positive":"alpha-negative");}'
+                            '}catch(e){console.warn("TLDR strip population failed",e);}})();\n'</script>'
+                        )
+                        body_close = final_html.lower().rfind('</body>')
+                        if body_close != -1:
+                            final_html = final_html[:body_close] + population_script + final_html[body_close:]
+        except Exception as e:
+            print(f"⚠️ TLDR injection failed: {e}")
         
         # Basic validation
         if not final_html.strip().startswith('<!DOCTYPE'):
@@ -651,6 +998,12 @@ Generate the complete HTML file for Week {self.week_number}.
         if missing:
             print(f"⚠️ Warning: Missing expected elements: {', '.join(missing)}")
         
+        # ================= PERFORMANCE OPTIMIZATION =================
+        try:
+            final_html = self._optimize_performance(final_html)
+        except Exception as e:
+            print(f"⚠️ Performance optimization failed: {e}")
+
         # Save to Posts folder
         output_path = POSTS_DIR / f"GenAi-Managed-Stocks-Portfolio-Week-{self.week_number}.html"
         with open(output_path, 'w', encoding='utf-8') as f:
@@ -658,20 +1011,313 @@ Generate the complete HTML file for Week {self.week_number}.
         
         print(f"✓ Prompt D completed - {output_path.name} created ({len(final_html)} bytes)")
         return final_html
+
+    # ===================== STANDARD HEAD BUILDER =====================
+    def _apply_standard_head(self, html: str) -> str:
+        """Replace <head> section with standardized meta/SEO structure.
+        Uses self.seo_json + self.master_json to build consistent ordering.
+        """
+        if not self.seo_json or not self.master_json:
+            return html
+        # Base values
+        base_url = "https://quantuminvestor.net"
+        week = self.week_number
+        slug = f"GenAi-Managed-Stocks-Portfolio-Week-{week}.html"
+        canonical = f"{base_url}/Posts/{slug}"
+        current_date = self.master_json.get('meta', {}).get('current_date')
+        # Published = next Monday after current_date
+        pub_dt = None
+        try:
+            d_obj = datetime.strptime(current_date, '%Y-%m-%d').date()
+            # Compute next Monday (0=Mon)
+            offset = (7 - d_obj.weekday()) % 7  # days until next Monday (0 means today if Monday)
+            if offset == 0:  # if current_date already Monday, treat as same-day publish
+                offset = 0
+            pub_dt = d_obj + timedelta(days=offset or 0)
+        except Exception:
+            pub_dt = datetime.utcnow().date()
+        published_iso = f"{pub_dt}T16:30:00Z"
+        modified_iso = f"{current_date}T16:30:00Z" if current_date else published_iso
+        title = self.seo_json.get('title') or f"GenAi-Managed Stocks Portfolio Week {week} – Performance, Risks & Next Moves - Quantum Investor Digest"
+        description = self.seo_json.get('description') or f"Week {week} AI-managed portfolio performance: returns, movers, risks vs. benchmarks."
+        og_title = self.seo_json.get('ogTitle') or title
+        og_desc = self.seo_json.get('ogDescription') or description
+        og_image = self.seo_json.get('ogImage') or f"{base_url}/Media/W{week}.webp"
+        twitter_title = self.seo_json.get('twitterTitle') or og_title
+        twitter_desc = self.seo_json.get('twitterDescription') or og_desc
+        twitter_image = self.seo_json.get('twitterImage') or og_image
+        twitter_card = self.seo_json.get('twitterCard') or 'summary_large_image'
+        author = "Michael Gavrilov"
+
+        # JSON-LD BlogPosting
+        blog_ld = {
+            "@context": "https://schema.org",
+            "@type": "BlogPosting",
+            "headline": title.replace(' - Quantum Investor Digest',''),
+            "description": description,
+            "datePublished": str(pub_dt),
+            "dateCreated": self.master_json.get('meta', {}).get('inception_date'),
+            "dateModified": current_date,
+            "url": canonical,
+            "author": {"@type":"Person","name": author},
+            "publisher": {"@type":"Organization","name":"Quantum Investor Digest","logo":{"@type":"ImageObject","url": f"{base_url}/Media/LogoB.webp"}},
+            "image": f"{base_url}/Media/W{week}.webp",
+            "articleSection": "AI Portfolio Weekly Review",
+            "keywords": "AI investing, momentum stocks, portfolio performance, Bitcoin, S&P 500"
+        }
+        # Breadcrumbs
+        breadcrumbs_ld = {
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+                {"@type":"ListItem","position":1,"name":"Home","item": base_url + "/"},
+                {"@type":"ListItem","position":2,"name":"Blog","item": f"{base_url}/Posts/posts.html"},
+                {"@type":"ListItem","position":3,"name": f"GenAi-Managed Stocks Portfolio Week {week}","item": canonical}
+            ]
+        }
+        # Build head markup (weekly posts use local images, no external preconnect needed)
+        csp = CSP_POLICY
+        head_markup = f"""<head>
+    <meta charset=\"UTF-8\">
+    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
+    <title>{title}</title>
+    <meta name=\"description\" content=\"{description}\">
+    <meta name=\"author\" content=\"{author}\">
+    <meta name=\"theme-color\" content=\"#000000\">
+    <meta name=\"referrer\" content=\"strict-origin-when-cross-origin\">
+    <meta http-equiv=\"Content-Security-Policy\" content=\"{csp}\">
+    <meta name=\"color-scheme\" content=\"dark\">
+    <link rel=\"canonical\" href=\"{canonical}\">
+    <link rel=\"icon\" href=\"../Media/favicon.ico\" type=\"image/x-icon\">
+    <meta property=\"og:type\" content=\"article\">
+    <meta property=\"og:url\" content=\"{canonical}\">
+    <meta property=\"og:title\" content=\"{og_title}\">
+    <meta property=\"og:description\" content=\"{og_desc}\">
+    <meta property=\"og:image\" content=\"{og_image}\">
+    <meta property=\"article:published_time\" content=\"{published_iso}\">
+    <meta property=\"article:modified_time\" content=\"{modified_iso}\">
+    <meta name=\"twitter:card\" content=\"{twitter_card}\">
+    <meta name=\"twitter:site\" content=\"@qid2025\">
+    <meta name=\"twitter:title\" content=\"{twitter_title}\">
+    <meta name=\"twitter:description\" content=\"{twitter_desc}\">
+    <meta name=\"twitter:image\" content=\"{twitter_image}\">
+    <link rel=\"stylesheet\" href=\"../styles.css\">
+    <script src=\"../js/template-loader.js\" defer></script>
+    <script src=\"../js/mobile-menu.js\" defer></script>
+    <script type=\"application/ld+json\">{json.dumps(blog_ld, separators=(',',':'))}</script>
+    <script type=\"application/ld+json\">{json.dumps(breadcrumbs_ld, separators=(',',':'))}</script>
+</head>"""
+        # Replace existing head section
+        new_html = re.sub(r'<head>.*?</head>', head_markup, html, flags=re.DOTALL|re.IGNORECASE)
+        if new_html == html:
+            # If no replacement occurred, prepend head (unlikely but fallback)
+            doctype_pos = new_html.lower().find('<!doctype')
+            if doctype_pos != -1:
+                # find first <html>
+                html_pos = new_html.lower().find('<html')
+                if html_pos != -1:
+                    # insert after <html ...>
+                    after_html_tag = re.search(r'<html[^>]*>', new_html, re.IGNORECASE)
+                    if after_html_tag:
+                        end = after_html_tag.end()
+                        new_html = new_html[:end] + head_markup + new_html[end:]
+        # Inject palette data attribute on <body> tag
+        palette_attr = f"data-theme=\"{self.palette}\""
+        new_html = re.sub(r'<body(\s[^>]*)?>', lambda m: (
+            '<body ' + palette_attr + ('' if m.group(1) is None else m.group(1)) + '>'), new_html, count=1)
+        return new_html
+
+    def _optimize_performance(self, html: str) -> str:
+        """Post-process HTML for performance: hero fetchpriority, lazy load images, remove redundant inline styles."""
+        # Mark first hero image as high priority
+        html = re.sub(r'<img([^>]*?\bsrc=\"[^\"]*W\d+\.webp\"[^>]*)>',
+                      lambda m: ('<img' + (m.group(1)
+                        .replace('loading="lazy"', '')
+                        .replace('decoding="async"', '')
+                        + ' fetchpriority="high" decoding="async"') + '>'), html, count=1)
+        # Ensure remaining images (not hero) have lazy loading if not already
+        def add_lazy(match):
+            tag = match.group(0)
+            if 'fetchpriority="high"' in tag:
+                return tag
+            if 'loading=' not in tag:
+                tag = tag[:-1] + ' loading="lazy" decoding="async">'
+            return tag
+        html = re.sub(r'<img[^>]*>', add_lazy, html)
+        # Remove any leftover <style> blocks that only define key-metric (now centralized)
+        html = re.sub(r'<style>[^<]*?\.key-metric[^<]*?</style>', '', html, flags=re.DOTALL)
+        return html
     
     def update_index_pages(self):
-        """Update index.html and posts.html with new post card"""
-        print("\n🔗 Updating index and posts pages...")
+        """Update posts.html with dynamically generated listing from Posts/ directory"""
+        print("\n🔗 Regenerating posts.html listing...")
+        self._regenerate_posts_listing()
+        print("✓ posts.html regenerated with current weekly posts")
+    
+    def _regenerate_posts_listing(self):
+        """Scan Posts/ directory and rebuild posts.html with standardized head and cards"""
+        # Collect all weekly post metadata
+        post_files = sorted(
+            POSTS_DIR.glob("GenAi-Managed-Stocks-Portfolio-Week-*.html"),
+            key=lambda p: int(re.search(r'Week-(\d+)', p.name).group(1)),
+            reverse=True
+        )
         
-        # This is a simplified version - you may need to customize based on your exact HTML structure
-        post_date = datetime.now().strftime("%B %d, %Y")
-        post_url = f"Posts/GenAi-Managed-Stocks-Portfolio-Week-{self.week_number}.html"
+        posts_meta = []
+        for post_file in post_files:
+            week_match = re.search(r'Week-(\d+)', post_file.name)
+            if not week_match:
+                continue
+            week_num = int(week_match.group(1))
+            
+            # Parse published date and title from existing post file
+            with open(post_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+                date_match = re.search(r'<time[^>]*datetime="([^"]+)"', content)
+                title_match = re.search(r'<title>([^<]+)</title>', content)
+                desc_match = re.search(r'<meta name="description" content="([^"]+)"', content)
+                
+                pub_date = date_match.group(1).split('T')[0] if date_match else f"2025-10-{9+week_num:02d}"
+                title = f"GenAi-Managed Stocks Portfolio Week {week_num}"
+                desc = desc_match.group(1) if desc_match else f"Week {week_num} AI portfolio performance update."
+                
+                # Determine hero image
+                hero_img = f"../Media/W{week_num}.webp" if (REPO_ROOT / f"Media/W{week_num}.webp").exists() else "../Media/Hero.webp"
+                
+                posts_meta.append({
+                    'week': week_num,
+                    'url': f"https://quantuminvestor.net/Posts/GenAi-Managed-Stocks-Portfolio-Week-{week_num}.html",
+                    'relative_url': f"GenAi-Managed-Stocks-Portfolio-Week-{week_num}.html",
+                    'title': title,
+                    'description': desc,
+                    'date': pub_date,
+                    'hero': hero_img
+                })
         
-        # TODO: Implement actual HTML insertion logic for your specific site structure
-        # This would parse index.html and posts.html, find the posts section,
-        # and insert a new card with the correct structure
+        # Build JSON-LD ItemList
+        item_list_items = [
+            {
+                "@type": "ListItem",
+                "position": idx + 1,
+                "url": post['url'],
+                "name": post['title'],
+                "datePublished": post['date']
+            }
+            for idx, post in enumerate(posts_meta)
+        ]
         
-        print("✓ Index pages updated (manual review recommended)")
+        item_list_json = {
+            "@context": "https://schema.org",
+            "@type": "CollectionPage",
+            "name": "All Posts - Quantum Investor Digest",
+            "description": "Browse all weekly AI-managed stock portfolio performance updates and GenAI investing insights.",
+            "url": "https://quantuminvestor.net/Posts/posts.html",
+            "mainEntity": {
+                "@type": "ItemList",
+                "itemListElement": item_list_items
+            }
+        }
+        
+        breadcrumb_json = {
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+                {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://quantuminvestor.net/"},
+                {"@type": "ListItem", "position": 2, "name": "Blog", "item": "https://quantuminvestor.net/Posts/posts.html"}
+            ]
+        }
+        
+        # Build HTML cards
+        cards_html = []
+        for idx, post in enumerate(posts_meta):
+            # Format date for display
+            date_obj = datetime.strptime(post['date'], '%Y-%m-%d')
+            date_display = date_obj.strftime('%B %d, %Y')
+            
+            # Only first card gets fetchpriority
+            loading_attr = 'fetchpriority="high"' if idx == 0 else 'loading="lazy"'
+            
+            card_html = f'''                <a href="{post['relative_url']}" class="group">
+                    <div class="space-y-3">
+                        <div class="relative h-48 rounded-lg overflow-hidden border border-gray-800 group-hover:border-purple-500/50 transition-colors">
+                            <img src="{post['hero']}" alt="Week {post['week']} AI portfolio performance" class="w-full h-full object-cover" width="600" height="400" sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw" {loading_attr} decoding="async">
+                        </div>
+                        <div>
+                            <h3 class="font-medium group-hover:text-purple-400 transition-colors">{post['title']}</h3>
+                            <p class="text-gray-400 text-sm mt-2 line-clamp-2">{post['description']}</p>
+                            <div class="flex items-center gap-1 mt-3 text-xs text-gray-500">
+                                <time datetime="{post['date']}">{date_display}</time>
+                            </div>
+                        </div>
+                    </div>
+                </a>'''
+            cards_html.append(card_html)
+        
+        # Get newest hero for OG image
+        og_image = f"https://quantuminvestor.net/Media/W{posts_meta[0]['week']}.webp" if posts_meta else "https://quantuminvestor.net/Media/Hero.webp"
+        
+        # Generate complete posts.html
+        posts_html = f'''<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>All Posts - Quantum Investor Digest</title>
+    <meta name="description" content="Browse all Quantum Investor Digest posts covering AI-managed stock portfolios, weekly performance updates, and GenAI investing insights.">
+    <meta name="author" content="Michael Gavrilov">
+    <meta name="theme-color" content="#000000">
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta http-equiv="X-Frame-Options" content="SAMEORIGIN">
+    <meta http-equiv="Content-Security-Policy" content="{CSP_POLICY}">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <link rel="canonical" href="https://quantuminvestor.net/Posts/posts.html">
+    <link rel="icon" href="../Media/favicon.ico" type="image/x-icon">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://quantuminvestor.net/Posts/posts.html">
+    <meta property="og:title" content="All Posts - Quantum Investor Digest">
+    <meta property="og:description" content="Browse all Quantum Investor Digest posts covering AI-managed stock portfolios and weekly performance insights.">
+    <meta property="og:image" content="{og_image}">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@qid2025">
+    <meta name="twitter:title" content="All Posts - Quantum Investor Digest">
+    <meta name="twitter:description" content="Browse all AI portfolio weekly performance updates and GenAI investing insights.">
+    <meta name="twitter:image" content="{og_image}">
+    <link rel="preconnect" href="https://images.unsplash.com">
+    <link rel="dns-prefetch" href="https://images.unsplash.com">
+    <link rel="stylesheet" href="../styles.css">
+    <script src="../js/template-loader.js" defer></script>
+    <script src="../js/mobile-menu.js" defer></script>
+    <script type="application/ld+json">
+{json.dumps(item_list_json, indent=2)}
+    </script>
+    <script type="application/ld+json">
+{json.dumps(breadcrumb_json, indent=2)}
+    </script>
+</head>
+<body data-theme="{self.palette}">
+    <!-- Header -->
+    <div data-template="header" data-root-path="../"></div>
+
+    <main class="container mx-auto px-4 py-12">
+        <section class="mb-12">
+            <h1 class="text-4xl font-bold mb-8">All Posts</h1>
+
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+{chr(10).join(cards_html)}
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <div data-template="footer" data-root-path="../"></div>
+</body>
+</html>'''
+        
+        output_path = POSTS_DIR / "posts.html"
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(posts_html)
+        
+        print(f"✓ Generated posts.html with {len(posts_meta)} weekly posts")
     
     def run(self):
         """Execute full pipeline"""
@@ -724,6 +1370,8 @@ Generate the complete HTML file for Week {self.week_number}.
             print(f"\nGenerated files:")
             print(f"  - Data/W{self.week_number}/master.json")
             print(f"  - Posts/GenAi-Managed-Stocks-Portfolio-Week-{self.week_number}.html")
+                print(f"  - Media/W{self.week_number}-card.png (snippet card)")
+                print(f"  - Media/W{self.week_number}.webp (hero image)")
             if not self.ai_enabled:
                 print("    (Data-only mode: enable OPENAI_API_KEY for full narrative)")
             print(f"  - Data/archive/master-{self.master_json['meta']['current_date'].replace('-', '')}.json")
@@ -747,6 +1395,8 @@ def main():
                        help='Alpha Vantage API key (default: read from ALPHAVANTAGE_API_KEY env var)')
     parser.add_argument('--eval-date', type=str,
                         help='Manual override for evaluation date (YYYY-MM-DD). Uses this as current_date for week update.')
+    parser.add_argument('--palette', type=str, default='default',
+                        help='Palette theme to apply (default, alt). Injects data-theme attribute and enables alt CSS variables.')
 
     args = parser.parse_args()
 
@@ -758,7 +1408,8 @@ def main():
         model=args.model,
         data_source=args.data_source,
         alphavantage_key=args.alphavantage_key,
-        eval_date=args.eval_date
+        eval_date=args.eval_date,
+        palette=args.palette
     )
     automation.run()
 

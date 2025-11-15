@@ -1,238 +1,34 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GenAi-Managed Stocks Portfolio Week 2 – Performance, Risks & Next Moves - Quantum Investor Digest</title>
-    <meta name="description" content="How is an AI-managed stock portfolio performing in its second week? Review Week 2 of the GenAi-Managed Stocks Portfolio: performance vs. the S&P 500 and Bitcoin, early leadership, and what the transformer-based AI model is signaling for momentum and risk.">
-    <meta name="author" content="Michael Gavrilov">
-    <meta name="theme-color" content="#000000">
-    <meta name="referrer" content="strict-origin-when-cross-origin">
-    <link rel="canonical" href="https://quantuminvestor.net/Posts/GenAi-Managed-Stocks-Portfolio-Week-2.html">
-    <link rel="icon" href="../Media/favicon.ico" type="image/x-icon">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GenAi-Managed Stocks Portfolio Week 2 – Performance, Risks & Next Moves - Quantum Investor Digest</title>
+  <meta name="description" content="How is an AI-managed stock portfolio performing in its second week? Review Week 2 of the GenAi-Managed Stocks Portfolio: performance vs. the S&P 500 and Bitcoin, early leadership, and what the transformer-based AI model is signaling for momentum and risk.">
+  <meta name="author" content="Michael Gavrilov">
+  <meta name="theme-color" content="#000000">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <link rel="canonical" href="https://quantuminvestor.net/Posts/GenAi-Managed-Stocks-Portfolio-Week-2.html">
+  <link rel="icon" href="../Media/favicon.ico" type="image/x-icon">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://quantuminvestor.net/Posts/GenAi-Managed-Stocks-Portfolio-Week-2.html">
+  <meta property="og:title" content="GenAi-Managed Stocks Portfolio Weekly Update – Week 2">
+  <meta property="og:description" content="How is an AI-managed stock portfolio performing through Week 2? Review weekly performance, winners and laggards, and what the transformer-based AI model is signaling next.">
+  <meta property="og:image" content="https://quantuminvestor.net/Media/W2.webp">
+  <meta property="article:published_time" content="2025-10-27T16:30:00Z">
+  <meta property="article:modified_time" content="2025-10-23T16:30:00Z">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:site" content="@qid2025">
+  <meta name="twitter:title" content="GenAi-Managed Stocks Portfolio Weekly Update – Week 2">
+  <meta name="twitter:description" content="AI-managed momentum portfolio Week 2 performance update — see the latest moves vs. S&P 500 and Bitcoin.">
+  <meta name="twitter:image" content="https://quantuminvestor.net/Media/W2.webp">
+  <link rel="stylesheet" href="../styles.css">
+  <script src="../js/template-loader.js" defer></script>
+  <script src="../js/mobile-menu.js" defer></script>
+  <!-- Inline component styles removed (now in styles.css) -->
 
-    <meta property="og:type" content="article">
-    <meta property="og:url" content="https://quantuminvestor.net/Posts/GenAi-Managed-Stocks-Portfolio-Week-2.html">
-    <meta property="og:title" content="GenAi-Managed Stocks Portfolio Weekly Update – Week 2">
-    <meta property="og:description" content="How is an AI-managed stock portfolio performing through Week 2? Review weekly performance, winners and laggards, and what the transformer-based AI model is signaling next.">
-    <meta property="og:image" content="https://quantuminvestor.net/Media/OG-Image.png">
-
-    <meta property="article:published_time" content="2025-10-27T16:30:00Z">
-    <meta property="article:modified_time" content="2025-10-23T16:30:00Z">
-
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:site" content="@qid2025">
-    <meta name="twitter:title" content="GenAi-Managed Stocks Portfolio Weekly Update – Week 2">
-    <meta name="twitter:description" content="AI-managed momentum portfolio Week 2 performance update — see the latest moves vs. S&P 500 and Bitcoin.">
-    <meta name="twitter:image" content="https://quantuminvestor.net/Media/OG-Image.png">
-
-    <link rel="stylesheet" href="../styles.css">
-    <script src="../js/template-loader.js" defer></script>
-    <script src="../js/mobile-menu.js" defer></script>
-
-    <!-- Shared CSS (aligned with Weeks 3–5) -->
-    <style>
-/* === CHART CSS ================================== */
-.myblock-chart-container {
-  width: 100%;
-  max-width: 1000px;
-  margin: 30px auto;
-  padding: 20px;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  font-family: inherit;
-  overflow: hidden;
-  box-sizing: border-box;
-}
-.myblock-chart-title {
-  font-size: 20px;
-  font-weight: 600;
-  color: #2C3E50;
-  margin-bottom: 20px;
-  text-align: center;
-}
-.myblock-chart-wrapper {
-  position: relative;
-  width: 100%;
-  height: 400px;
-  margin-bottom: 20px;
-  overflow: hidden;
-}
-.myblock-chart-svg {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-.myblock-chart-grid-line {
-  stroke: #E8E8E8;
-  stroke-width: 1;
-  stroke-dasharray: 4,4;
-}
-.myblock-chart-axis {
-  stroke: #2C3E50;
-  stroke-width: 2;
-}
-.myblock-chart-label {
-  font-size: 12px;
-  fill: #666;
-  font-family: inherit;
-}
-.myblock-chart-line-genai {
-  fill: none;
-  stroke: #8B7AB8;
-  stroke-width: 3;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.myblock-chart-line-sp500 {
-  fill: none;
-  stroke: #2E7D32;
-  stroke-width: 2.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-dasharray: 6,4;
-}
-.myblock-chart-line-bitcoin {
-  fill: none;
-  stroke: #C62828;
-  stroke-width: 2.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-dasharray: 2,2;
-}
-.myblock-chart-dot {
-  r: 5;
-}
-.myblock-chart-dot-genai {
-  fill: #8B7AB8;
-  stroke: #fff;
-  stroke-width: 2;
-}
-.myblock-chart-dot-sp500 {
-  fill: #2E7D32;
-  stroke: #fff;
-  stroke-width: 2;
-}
-.myblock-chart-dot-bitcoin {
-  fill: #C62828;
-  stroke: #fff;
-  stroke-width: 2;
-}
-.myblock-chart-legend {
-  display: flex;
-  justify-content: center;
-  gap: 30px;
-  margin-top: 20px;
-  flex-wrap: wrap;
-}
-.myblock-chart-legend-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  color: #2C3E50;
-}
-.myblock-chart-legend-line {
-  width: 30px;
-  height: 3px;
-  border-radius: 2px;
-}
-.myblock-legend-genai { background:#8B7AB8; }
-.myblock-legend-sp500 { background:#2E7D32; }
-.myblock-legend-bitcoin { background:#C62828; }
-
-/* === TABLE CSS ================================ */
-.myblock-performance-snapshot {
-  margin: 20px 0;
-  font-family: inherit;
-  overflow-x: visible;
-}
-.myblock-portfolio-table {
-  width: 100%;
-  border-collapse: collapse;
-  background: white;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  border-radius: 8px;
-  overflow: hidden;
-  table-layout: fixed;
-  contain: layout style;
-}
-.myblock-portfolio-table thead tr {
-  background: #8B7AB8;
-  color: white;
-  font-weight: bold;
-}
-.myblock-portfolio-table th {
-  padding: 16px 12px;
-  text-align: left;
-  border: 1px solid #E5E5E5;
-  font-size: 13px;
-  font-weight: 600;
-  white-space: nowrap;
-  font-family: inherit;
-}
-.myblock-portfolio-table th:not(:first-child) {
-  text-align: right;
-}
-.myblock-portfolio-table td {
-  padding: 14px 12px;
-  border: 1px solid #E5E5E5;
-  font-size: 14px;
-  white-space: nowrap;
-  color: #2C3E50;
-  font-family: inherit;
-}
-.myblock-portfolio-table td:not(.asset-name) {
-  text-align: right;
-}
-.myblock-portfolio-table .asset-name {
-  font-weight: 600;
-  text-align: left;
-  white-space: normal;
-  min-width: 120px;
-}
-.myblock-portfolio-table tbody tr {
-  transition: background-color 0.2s ease;
-}
-.myblock-portfolio-table tbody tr:nth-child(even) {
-  background: #F9F9FB;
-}
-.myblock-portfolio-table tbody tr:hover {
-  background: #F8F5FF;
-}
-.myblock-portfolio-table .positive {
-  color: #2E7D32;
-  font-weight: 600;
-}
-.myblock-portfolio-table .negative {
-  color: #C62828;
-  font-weight: 600;
-}
-    </style>
-
-    <!-- JSON-LD -->
-    <script type="application/ld+json">
-{
-  "@context":"https://schema.org",
-  "@type":"BlogPosting",
-  "headline":"GenAi-Managed Stocks Portfolio Week 2 – Performance, Risks & Next Moves",
-  "description":"Full Week 2 performance update for the AI-managed GenAi Chosen Portfolio.",
-  "datePublished":"2025-10-27",
-  "dateCreated":"2025-10-09",
-  "dateModified":"2025-10-23",
-  "author":{"@type":"Person","name":"Michael Gavrilov"},
-  "publisher":{
-    "@type":"Organization",
-    "name":"Quantum Investor Digest",
-    "logo":{"@type":"ImageObject","url":"https://quantuminvestor.net/Media/LogoB.webp"}
-  },
-  "url":"https://quantuminvestor.net/Posts/GenAi-Managed-Stocks-Portfolio-Week-2.html",
-  "image":"https://quantuminvestor.net/Media/W2.webp",
-  "articleSection":"AI Portfolio Weekly Review",
-  "keywords":"AI investing, momentum stocks, portfolio performance, Bitcoin, S&P 500"
-}
-    </script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"GenAi-Managed Stocks Portfolio Week 2 – Performance, Risks & Next Moves","description":"Full Week 2 performance update for the AI-managed GenAi Chosen Portfolio.","datePublished":"2025-10-27","dateCreated":"2025-10-09","dateModified":"2025-10-23","url":"https://quantuminvestor.net/Posts/GenAi-Managed-Stocks-Portfolio-Week-2.html","author":{"@type":"Person","name":"Michael Gavrilov"},"publisher":{"@type":"Organization","name":"Quantum Investor Digest","logo":{"@type":"ImageObject","url":"https://quantuminvestor.net/Media/LogoB.webp"}},"image":"https://quantuminvestor.net/Media/W2.webp","articleSection":"AI Portfolio Weekly Review","keywords":"AI investing, momentum stocks, portfolio performance, Bitcoin, S&P 500"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://quantuminvestor.net/"},{"@type":"ListItem","position":2,"name":"Blog","item":"https://quantuminvestor.net/Posts/posts.html"},{"@type":"ListItem","position":3,"name":"GenAi-Managed Stocks Portfolio Week 2","item":"https://quantuminvestor.net/Posts/GenAi-Managed-Stocks-Portfolio-Week-2.html"}]}</script>
 </head>
 
 <body class="bg-black text-white">
@@ -256,6 +52,13 @@
              class="w-full h-full object-cover"
              loading="lazy" decoding="async">
       </div>
+    </div>
+
+    <!-- TLDR STRIP (Week 2 metrics) -->
+    <div id="tldrStrip" class="tldr-strip mb-10" aria-label="Weekly summary strip">
+      <div class="tldr-metric"><span>Week Change</span><span id="tldrWeek">--</span></div>
+      <div class="tldr-metric"><span>Since Inception</span><span id="tldrTotal">--</span></div>
+      <div class="tldr-metric"><span>Alpha vs SPX (Total)</span><span id="tldrAlpha">--</span></div>
     </div>
 
     <!-- ======================= NARRATIVE ========================= -->
@@ -539,6 +342,33 @@
 </main>
 
 <div data-template="footer" data-root-path="../"></div>
+
+<script>
+// Populate TLDR strip for Week 2 (index 2 in portfolio_history)
+(async function(){
+  try {
+    const res = await fetch('../Data/W5/master.json');
+    if(!res.ok) return;
+    const data = await res.json();
+    const ph = data.portfolio_history;
+    const spxHist = data.benchmarks?.sp500?.history || [];
+    const targetIndex = 2; // Oct 23, 2025 (Week 2 end)
+    if(ph.length <= targetIndex || spxHist.length <= targetIndex) return;
+    const pEntry = ph[targetIndex];
+    const spxEntry = spxHist[targetIndex];
+    const week = (pEntry.weekly_pct).toFixed(2) + '%';
+    const total = (pEntry.total_pct).toFixed(2) + '%';
+    const alphaVal = pEntry.total_pct - spxEntry.total_pct;
+    const alpha = alphaVal.toFixed(2) + '%';
+    const wEl = document.getElementById('tldrWeek');
+    const tEl = document.getElementById('tldrTotal');
+    const aEl = document.getElementById('tldrAlpha');
+    if(wEl) wEl.textContent = week;
+    if(tEl) tEl.textContent = total;
+    if(aEl){ aEl.textContent = alpha; aEl.classList.add(alphaVal >= 0 ? 'alpha-positive':'alpha-negative'); }
+  } catch(e){ console.warn('Week 2 TLDR population failed', e); }
+})();
+</script>
 
 </body>
 </html>

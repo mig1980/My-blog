@@ -36,9 +36,19 @@
     }
 
     // Initialize when DOM is ready
+    function applyPalette() {
+        try {
+            const stored = localStorage.getItem('qiPalette');
+            if (stored) {
+                document.body.setAttribute('data-theme', stored);
+            }
+        } catch(e) { /* storage may be blocked */ }
+    }
+
     async function init() {
         const templates = document.querySelectorAll('[data-template]');
         await Promise.all(Array.from(templates).map(loadTemplate));
+        applyPalette();
         // Dispatch custom event after all templates loaded
         document.dispatchEvent(new Event('templatesLoaded'));
     }

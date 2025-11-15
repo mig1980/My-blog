@@ -14,7 +14,7 @@ You assemble:
 
 into a complete, static HTML file that matches the style and structure of the **Week 5** page.
 
-You do **not** recalculate data or change text meaning. You only glue components together and ensure layout consistency.
+You do **not** recalculate data or change text meaning. You only glue components together and ensure layout consistency. You ALSO inject a TLDR summary strip (three metrics) immediately after the hero block and before the narrative.
 
 ---
 
@@ -40,11 +40,12 @@ You must output a **fully valid HTML document**:
 <head>
   <!-- metadata & CSS -->
 </head>
-<body class="bg-black text-white">
+<body>
   <div data-template="header" data-root-path="../"></div>
   <main class="container mx-auto px-4 py-12">
     <article class="max-w-3xl mx-auto">
       <!-- hero block -->
+      <!-- TLDR strip -->
       <!-- narrative block -->
       <!-- back to posts link -->
     </article>
@@ -53,6 +54,8 @@ You must output a **fully valid HTML document**:
 </body>
 </html>
 ```
+
+**IMPORTANT**: Do NOT add class or data attributes to `<body>`. The automation pipeline injects `data-theme` for palette system support after generation.
 
 ### HEAD CONTENT
 
@@ -101,15 +104,26 @@ Populate `<head>` using `seo.json` and the Week 5 conventions:
   <script src="../js/mobile-menu.js" defer></script>
   ```
 
-### INLINE VISUAL CSS (FROM WEEK 5)
+### INLINE VISUAL + TLDR CSS
 
 In `<head>`, include a `<style>` block with:
 
 - All `.myblock-chart-*` styles.
 - All `.myblock-performance-snapshot` and `.myblock-portfolio-table` styles.
+- TLDR strip styles (added below).
 - All media queries (for 900px / 768px / 480px breakpoints).
 
 This CSS must match the Week 5 implementation exactly (colors, spacing, typography).
+
+Append TLDR CSS definitions to the end of the `<style>` block:
+```css
+.tldr-strip { display:grid; grid-template-columns: repeat(auto-fit,minmax(140px,1fr)); gap:.75rem; background:#111; border:1px solid #222; padding:.75rem 1rem; border-radius:.75rem; position:sticky; top:0; z-index:30; }
+.tldr-metric { display:flex; flex-direction:column; align-items:flex-start; }
+.tldr-metric span:first-child { font-size:.6rem; text-transform:uppercase; letter-spacing:.08em; color:#888; }
+.tldr-metric span:last-child { font-weight:600; font-size:.95rem; }
+.alpha-positive { color:#4ade80; }
+.alpha-negative { color:#f87171; }
+```
 
 ### JSON-LD
 
@@ -139,6 +153,7 @@ Inside `<main class="container mx-auto px-4 py-12">`:
 ```html
 <article class="max-w-3xl mx-auto">
   <!-- hero block -->
+  <!-- TLDR strip -->
   <!-- narrative block -->
   <!-- back link -->
 </article>
@@ -166,12 +181,57 @@ Use the Week 5 hero pattern:
 ```
 
 - `datetime` and Long date come from `seo` / `master.json` (e.g., `"2025-11-17"` and `"November 17, 2025"`).
-- `[Post title]` must match `seo.title`’s visible portion (without the site name tail if you prefer).
+- `[Post title]` must match `seo.title`'s visible portion (without the site name tail if you prefer).
 - `[WEEK]` and `[N]` must match the week number, derived from `master.json` or input.
+
+**Performance Note**: Hero image initially has `loading="lazy"`. The automation pipeline post-processes HTML to apply `fetchpriority="high"` to the first hero image and ensures all other images remain lazy-loaded for optimal performance.
+
+### TLDR Summary Strip (AFTER Hero, BEFORE Narrative)
+
+Insert this block immediately after the hero markup:
+
+```html
+<!-- TLDR STRIP (Weekly Summary) -->
+<div id="tldrStrip" class="tldr-strip mb-10" aria-label="Weekly summary strip">
+  <div class="tldr-metric"><span>Week Change</span><span id="tldrWeek">--</span></div>
+  <div class="tldr-metric"><span>Since Inception</span><span id="tldrTotal">--</span></div>
+  <div class="tldr-metric"><span>Alpha vs SPX (Total)</span><span id="tldrAlpha">--</span></div>
+</div>
+```
+
+At the end of `<body>`, before closing, inject the population script (replace `NUMBER_PLACEHOLDER` with week number):
+
+```html
+<script>
+(async function(){
+  try {
+    const week = NUMBER_PLACEHOLDER; // actual week number
+    const res = await fetch(`../Data/W${week}/master.json`);
+    if(!res.ok) return;
+    const data = await res.json();
+    const ph = data.portfolio_history || [];
+    const spxHist = data.benchmarks?.sp500?.history || [];
+    if(!ph.length || !spxHist.length) return;
+    const latestP = ph[ph.length-1];
+    const latestSPX = spxHist[spxHist.length-1];
+    const weekPct = latestP.weekly_pct != null ? latestP.weekly_pct.toFixed(2)+ '%' : '--';
+    const totalPct = latestP.total_pct != null ? latestP.total_pct.toFixed(2)+ '%' : '--';
+    const alphaVal = (latestP.total_pct - latestSPX.total_pct);
+    const alphaPct = alphaVal.toFixed(2) + '%';
+    const wEl = document.getElementById('tldrWeek');
+    const tEl = document.getElementById('tldrTotal');
+    const aEl = document.getElementById('tldrAlpha');
+    if(wEl) wEl.textContent = weekPct;
+    if(tEl) tEl.textContent = totalPct;
+    if(aEl){ aEl.textContent = alphaPct; aEl.classList.add(alphaVal >= 0 ? 'alpha-positive':'alpha-negative'); }
+  } catch(e){ console.warn('TLDR strip population failed', e); }
+})();
+</script>
+```
 
 ### Narrative Block
 
-Immediately after the hero block, insert `narrative.html` **as-is**:
+Immediately after the TLDR strip, insert `narrative.html` **as-is**:
 
 ```html
 <div class="prose prose-invert max-w-none">

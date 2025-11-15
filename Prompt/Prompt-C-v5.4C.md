@@ -12,6 +12,8 @@ You take `master.json` (from Prompt A) and generate:
 
 You do **not** write narrative or SEO. You only produce visuals that match the exact style used in **Week 5**.
 
+You do **not** generate the TLDR summary strip. That is handled by Prompt D.
+
 ---
 
 ## INPUT
