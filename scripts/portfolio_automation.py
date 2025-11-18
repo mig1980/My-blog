@@ -14,9 +14,20 @@ from openai import OpenAI
 import re
 import time
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 import io
 import base64
+import secrets
+import logging
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
 
 # Configure paths
 REPO_ROOT = Path(__file__).parent.parent
@@ -41,51 +52,66 @@ CSP_POLICY_TEMPLATE = (
 )
 
 class PortfolioAutomation:
-    def __init__(self, week_number=None, api_key=None, model="gpt-4-turbo-preview", data_source="ai", alphavantage_key=None, eval_date=None, palette="default", minify_css=False):
+    def __init__(self, week_number=None, api_key=None, model="gpt-5.1", data_source="ai", alphavantage_key=None, marketstack_key=None, eval_date=None, palette="default", minify_css=False):
         self.week_number = week_number or self.detect_next_week()
         self.api_key = api_key or os.getenv('OPENAI_API_KEY')
         self.model = model
         self.data_source = data_source.lower()
         self.alphavantage_key = alphavantage_key or os.getenv('ALPHAVANTAGE_API_KEY')
+        self.marketstack_key = marketstack_key or os.getenv('MARKETSTACK_API_KEY')
         self.client = None
         self.ai_enabled = False
         self.eval_date = None
         self.palette = palette  # theme palette selector ("default", "alt", etc.)
         self.minify_css = minify_css
-        self.nonce = 'qi123'
+        self.nonce = 'qi123'  # Static nonce for consistency with existing pages (static HTML doesn't support dynamic nonces)
         self.stylesheet_name = 'styles.css'
+        
+        # Configure HTTP session with retry logic
+        self.session = requests.Session()
+        retry_strategy = Retry(
+            total=3,
+            backoff_factor=1,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=["HEAD", "GET", "OPTIONS"]
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        self.session.mount('http://', adapter)
+        self.session.mount('https://', adapter)
+        
         if eval_date:
             try:
                 datetime.strptime(eval_date, '%Y-%m-%d')
                 self.eval_date = eval_date
-                print(f"✓ Using manual evaluation date override: {self.eval_date}")
+                logging.info(f"Using manual evaluation date override: {self.eval_date}")
             except ValueError:
-                print(f"⚠️ Invalid --eval-date '{eval_date}' (expected YYYY-MM-DD). Ignoring override.")
+                logging.warning(f"Invalid --eval-date '{eval_date}' (expected YYYY-MM-DD). Ignoring override.")
 
         # Initialize OpenAI client (required unless using alphavantage data-only mode)
         if self.api_key:
             try:
                 self.client = OpenAI(api_key=self.api_key)
                 self.ai_enabled = True
-                print(f"✓ OpenAI client initialized (model: {self.model})")
+                logging.info(f"OpenAI client initialized (model: {self.model})")
             except Exception as e:
-                print(f"⚠️ Failed to init OpenAI client: {e}")
+                logging.error(f"Failed to init OpenAI client: {e}")
         else:
             if self.data_source == 'ai':
                 raise ValueError("OpenAI API key not found. Set OPENAI_API_KEY environment variable.")
-            print("⚠️ No OPENAI_API_KEY. Will skip AI narrative (Prompts B-D) and produce data-only output.")
+            logging.warning("No OPENAI_API_KEY. Will skip AI narrative (Prompts B-D) and produce data-only output.")
 
         # Validate Alpha Vantage key if needed
         if self.data_source == 'alphavantage':
             if not self.alphavantage_key:
                 raise ValueError("Alpha Vantage API key required. Set ALPHAVANTAGE_API_KEY environment variable.")
-            print(f"✓ Using Alpha Vantage data source (key: {self.alphavantage_key[:8]}...)")
+            logging.info(f"Using Alpha Vantage data source (key: {self.alphavantage_key[:8]}...)")
 
         # Load prompts
         self.prompts = self.load_prompts()
 
         # State storage
         self.master_json = None
+        self.existing_weeks = None  # Cached week count from master.json
         self.narrative_html = None
         self.seo_json = None
         self.performance_table = None
@@ -101,19 +127,21 @@ class PortfolioAutomation:
     
     def detect_next_week(self):
         """Auto-detect next week number from master data file"""
-        master_path = MASTER_DATA_DIR / "master.json"
-        if master_path.exists():
-            try:
-                with open(master_path, 'r', encoding='utf-8') as f:
-                    master = json.load(f)
-                    existing_weeks = len(master.get('portfolio_history', []))
-                    return existing_weeks + 1
-            except Exception as e:
-                print(f"⚠️ Could not read master data: {e}")
+        # If already loaded via load_master_json(), reuse cached value
+        if self.existing_weeks is not None:
+            return self.existing_weeks + 1
         
-        # Fallback to scanning legacy Data/ directory
-        week_folders = sorted([int(d.name[1:]) for d in DATA_DIR.glob('W*') if d.is_dir() and d.name[1:].isdigit()])
-        return (week_folders[-1] + 1) if week_folders else 1
+        master_path = MASTER_DATA_DIR / "master.json"
+        if not master_path.exists():
+            raise ValueError(f"Master data file not found: {master_path}")
+        
+        try:
+            with open(master_path, 'r', encoding='utf-8') as f:
+                master = json.load(f)
+                existing_weeks = len(master.get('portfolio_history', [])) - 1  # Subtract inception
+                return existing_weeks + 1  # Add 1 for next week
+        except Exception as e:
+            raise ValueError(f"Could not read master data: {e}")
     
     def add_step(self, name, status, description, details=None):
         """Add a step to the execution report"""
@@ -132,16 +160,16 @@ class PortfolioAutomation:
         end_time = datetime.now()
         duration = (end_time - self.report['start_time']).total_seconds()
         
-        print("\n" + "="*80)
-        print(f" AUTOMATION EXECUTION REPORT - Week {self.report['week_number']}")
-        print("="*80)
-        print(f"Started:  {self.report['start_time'].strftime('%Y-%m-%d %H:%M:%S')}")
-        print(f"Finished: {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
-        print(f"Duration: {duration:.1f} seconds")
-        print(f"Status:   {'✅ SUCCESS' if self.report['success'] else '❌ FAILED'}")
-        print("\n" + "-"*80)
-        print("EXECUTION STEPS:")
-        print("-"*80)
+        logging.info("="*80)
+        logging.info(f" AUTOMATION EXECUTION REPORT - Week {self.report['week_number']}")
+        logging.info("="*80)
+        logging.info(f"Started:  {self.report['start_time'].strftime('%Y-%m-%d %H:%M:%S')}")
+        logging.info(f"Finished: {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        logging.info(f"Duration: {duration:.1f} seconds")
+        logging.info(f"Status:   {'✅ SUCCESS' if self.report['success'] else '❌ FAILED'}")
+        logging.info("-"*80)
+        logging.info("EXECUTION STEPS:")
+        logging.info("-"*80)
         
         for i, step in enumerate(self.report['steps'], 1):
             status_icon = {
@@ -151,22 +179,22 @@ class PortfolioAutomation:
                 'skipped': '⊘'
             }.get(step['status'], '•')
             
-            print(f"\n{i}. {status_icon} {step['name']}")
-            print(f"   Status: {step['status'].upper()}")
-            print(f"   {step['description']}")
+            logging.info(f"{i}. {status_icon} {step['name']}")
+            logging.info(f"   Status: {step['status'].upper()}")
+            logging.info(f"   {step['description']}")
             if 'details' in step:
                 for key, value in step['details'].items():
-                    print(f"   {key}: {value}")
+                    logging.info(f"   {key}: {value}")
         
-        print("\n" + "="*80)
+        logging.info("="*80)
         
         # Summary counts
         success_count = sum(1 for s in self.report['steps'] if s['status'] == 'success')
         warning_count = sum(1 for s in self.report['steps'] if s['status'] == 'warning')
         error_count = sum(1 for s in self.report['steps'] if s['status'] == 'error')
         
-        print(f"SUMMARY: {success_count} succeeded, {warning_count} warnings, {error_count} errors")
-        print("="*80 + "\n")
+        logging.info(f"SUMMARY: {success_count} succeeded, {warning_count} warnings, {error_count} errors")
+        logging.info("="*80)
     
     def load_prompts(self):
         """Load all prompt markdown files (A, B, C, D)"""
@@ -178,7 +206,7 @@ class PortfolioAutomation:
                 with open(prompt_file, 'r', encoding='utf-8') as f:
                     prompts[letter] = f.read()
             else:
-                print(f"⚠️ Warning: {prompt_file.name} not found")
+                logging.warning(f"{prompt_file.name} not found")
                 prompts[letter] = f"# Prompt {letter} (placeholder)"
                 missing.append(letter)
         
@@ -204,11 +232,11 @@ class PortfolioAutomation:
             with open(master_path, 'r', encoding='utf-8') as f:
                 self.master_json = json.load(f)
             
-            existing_weeks = len(self.master_json.get('portfolio_history', []))
-            print(f"✓ Loaded consolidated master.json ({existing_weeks} weeks): {master_path}")
+            self.existing_weeks = len(self.master_json.get('portfolio_history', [])) - 1  # Subtract inception
+            logging.info(f"Loaded consolidated master.json ({self.existing_weeks} weeks + inception): {master_path}")
             
             self.add_step("Load Master Data", "success", 
-                         f"Loaded master.json with {existing_weeks} existing weeks",
+                         f"Loaded master.json with {self.existing_weeks} completed weeks",
                          {'file_path': str(master_path)})
             
             return self.master_json
@@ -237,17 +265,17 @@ class PortfolioAutomation:
             )
             return response.choices[0].message.content
         except Exception as e:
-            print(f"⚠️ GPT-4 API call failed: {e}")
+            logging.error(f"GPT-4 API call failed: {e}")
             raise
     
     def _purge_and_minify_css(self):
         """CSS optimization (placeholder - not critical for MVP)"""
-        print("⚠️ CSS minification not implemented (using original styles.css)")
+        logging.warning("CSS minification not implemented (using original styles.css)")
         pass
     
     def run_prompt_a(self):
         """Prompt A: Data Engine - Update master.json with new week's data"""
-        print("\n📊 Running Prompt A: Data Engine...")
+        logging.info("Running Prompt A: Data Engine...")
         
         try:
             system_prompt = "You are the GenAi Chosen Data Engine. Follow Prompt A specifications exactly."
@@ -285,11 +313,18 @@ Generate the updated master.json for Week {self.week_number}.
             if self.eval_date and self.master_json.get('meta', {}).get('current_date') != self.eval_date:
                 self.master_json['meta']['current_date'] = self.eval_date
 
-            # Save to consolidated master data (primary location)
+            # Save to consolidated master data (primary location) - atomic write
             MASTER_DATA_DIR.mkdir(exist_ok=True)
             master_path = MASTER_DATA_DIR / "master.json"
-            with open(master_path, 'w') as f:
-                json.dump(self.master_json, f, indent=2)
+            temp_path = master_path.with_suffix('.tmp')
+            try:
+                with open(temp_path, 'w') as f:
+                    json.dump(self.master_json, f, indent=2)
+                temp_path.replace(master_path)  # Atomic on POSIX, near-atomic on Windows
+            except Exception as e:
+                if temp_path.exists():
+                    temp_path.unlink()
+                raise
             
             # Archive timestamped backup
             ARCHIVE_DIR.mkdir(exist_ok=True)
@@ -305,28 +340,17 @@ Generate the updated master.json for Week {self.week_number}.
             with open(legacy_path, 'w') as f:
                 json.dump(self.master_json, f, indent=2)
             
-            print(f"✓ Prompt A completed for Week {self.week_number}")
-            print(f"  → Primary: {master_path}")
-            print(f"  → Archive: {archive_path}")
-            print(f"  → Legacy:  {legacy_path} (optional)")
+            logging.info(f"Prompt A completed for Week {self.week_number}")
+            logging.info(f"  → Primary: {master_path}")
+            logging.info(f"  → Archive: {archive_path}")
+            logging.info(f"  → Legacy:  {legacy_path} (optional)")
             
             self.add_step("Prompt A - Data Engine", "success", 
                          f"Updated master.json with Week {self.week_number} data",
                          {'primary_file': str(master_path), 'archive_file': str(archive_path)})
             
-            # Generate hero image then snippet share card immediately after data update
-            try:
-                self.generate_hero_image()
-            except Exception as e:
-                print(f"⚠️ Hero image generation failed: {e}")
-                self.add_step("Generate Hero Image", "error", 
-                             f"Failed to generate hero image: {str(e)}")
-            try:
-                self.generate_snippet_card()
-            except Exception as e:
-                print(f"⚠️ Snippet card generation failed: {e}")
-                self.add_step("Generate Snippet Card", "error", 
-                             f"Failed to generate snippet card: {str(e)}")
+            # Generate media assets
+            self._generate_media_assets()
             
             return self.master_json
             
@@ -334,6 +358,15 @@ Generate the updated master.json for Week {self.week_number}.
             self.add_step("Prompt A - Data Engine", "error", 
                          f"Prompt A execution failed: {str(e)}")
             raise
+    
+    def _generate_media_assets(self):
+        """Generate hero image with error handling."""
+        try:
+            self.generate_hero_image()
+        except Exception as e:
+            logging.error(f"Hero image generation failed: {e}")
+            self.add_step("Generate Hero Image", "error", 
+                         f"Failed to generate hero image: {str(e)}")
 
     # ===================== ALPHA VANTAGE DATA ENGINE =====================
     def _latest_market_date(self):
@@ -348,7 +381,7 @@ Generate the updated master.json for Week {self.week_number}.
 
     def _fetch_alphavantage_quote(self, symbol):
         """Fetch latest quote for a symbol from Alpha Vantage.
-        Returns dict with date and close price, or None on failure.
+        Returns dict with date, close price, and source, or None on failure.
         """
         url = 'https://www.alphavantage.co/query'
         params = {
@@ -357,24 +390,113 @@ Generate the updated master.json for Week {self.week_number}.
             'apikey': self.alphavantage_key
         }
         try:
-            response = requests.get(url, params=params, timeout=10)
+            response = self.session.get(url, params=params, timeout=10)
             response.raise_for_status()
             data = response.json()
             
             if 'Global Quote' in data and data['Global Quote']:
                 quote = data['Global Quote']
+                # Validate date format
+                date_str = quote.get('07. latest trading day', '')
+                try:
+                    datetime.strptime(date_str, '%Y-%m-%d')
+                    date_clean = date_str
+                except ValueError:
+                    date_clean = self._latest_market_date()
+                    logging.warning(f"Invalid date format from Alpha Vantage for {symbol}, using fallback: {date_clean}")
+                
                 return {
-                    'date': quote.get('07. latest trading day', ''),
-                    'close': float(quote.get('05. price', 0))
+                    'date': date_clean,
+                    'close': float(quote.get('05. price', 0)),
+                    'source': 'Alpha Vantage'
                 }
             elif 'Note' in data:
-                print(f"⚠️ Rate limit hit for {symbol}: {data['Note']}")
+                logging.warning(f"Rate limit hit for {symbol}: {data['Note']}")
                 return None
             else:
-                print(f"⚠️ No data returned for {symbol}")
+                logging.warning(f"No data returned for {symbol}")
                 return None
         except Exception as e:
-            print(f"⚠️ Failed to fetch {symbol}: {e}")
+            logging.warning(f"Failed to fetch {symbol}: {e}")
+            return None
+
+    def _fetch_alphavantage_crypto(self, symbol, to_currency='USD'):
+        """Fetch crypto price from Alpha Vantage crypto endpoint.
+        Returns dict with date, close price, and source, or None on failure.
+        """
+        url = 'https://www.alphavantage.co/query'
+        params = {
+            'function': 'CURRENCY_EXCHANGE_RATE',
+            'from_currency': symbol,
+            'to_currency': to_currency,
+            'apikey': self.alphavantage_key
+        }
+        try:
+            response = self.session.get(url, params=params, timeout=10)
+            data = response.json()
+            if 'Realtime Currency Exchange Rate' in data:
+                rate = data['Realtime Currency Exchange Rate']
+                # Validate date format
+                date_str = rate.get('6. Last Refreshed', '')
+                try:
+                    date_obj = datetime.strptime(date_str[:10], '%Y-%m-%d')
+                    date_clean = date_obj.strftime('%Y-%m-%d')
+                except (ValueError, IndexError):
+                    date_clean = self._latest_market_date()
+                    logging.warning(f"Invalid date format from Alpha Vantage crypto for {symbol}, using fallback: {date_clean}")
+                
+                return {
+                    'date': date_clean,
+                    'close': float(rate.get('5. Exchange Rate', 0)),
+                    'source': 'Alpha Vantage (Crypto)'
+                }
+            else:
+                logging.warning(f"No crypto data returned for {symbol}")
+                return None
+        except Exception as e:
+            logging.warning(f"Failed to fetch crypto {symbol}: {e}")
+            return None
+
+    def _fetch_marketstack_quote(self, symbol):
+        """Fetch latest quote for a symbol from Marketstack.
+        Returns dict with date, close price, and source, or None on failure.
+        """
+        if not self.marketstack_key:
+            return None
+        
+        url = 'http://api.marketstack.com/v1/eod/latest'
+        params = {
+            'access_key': self.marketstack_key,
+            'symbols': symbol
+        }
+        try:
+            response = self.session.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            
+            if 'data' in data and data['data'] and len(data['data']) > 0:
+                quote = data['data'][0]
+                # Validate date format
+                date_str = quote.get('date', '')
+                try:
+                    # Validate it's a proper date and extract YYYY-MM-DD
+                    date_obj = datetime.strptime(date_str[:10], '%Y-%m-%d')
+                    date_clean = date_obj.strftime('%Y-%m-%d')
+                except (ValueError, IndexError):
+                    # Fallback to current market date
+                    date_clean = self._latest_market_date()
+                    logging.warning(f"Invalid date format from Marketstack for {symbol}, using fallback: {date_clean}")
+                
+                return {
+                    'date': date_clean,
+                    'close': float(quote.get('close', 0)),
+                    'source': 'Marketstack'
+                }
+            else:
+                logging.warning(f"No data returned from Marketstack for {symbol}")
+                return None
+        except Exception as e:
+            logging.warning(f"Failed to fetch {symbol} from Marketstack: {e}")
             return None
 
     def generate_master_from_alphavantage(self):
@@ -382,49 +504,68 @@ Generate the updated master.json for Week {self.week_number}.
         Uses previous week's master.json as baseline, fetches latest prices,
         recalculates weekly and total pct changes, benchmarks, portfolio history.
         """
-        print("\n🔄 Running Alpha Vantage data engine (replacing Prompt A)...")
+        logging.info("Running Alpha Vantage data engine (replacing Prompt A)...")
         if self.master_json is None:
             raise ValueError("Previous master.json must be loaded before fetching new data.")
 
-        prev_master = json.loads(json.dumps(self.master_json))  # deep copy
-        prev_date = prev_master['meta']['current_date']
-        inception_date = prev_master['meta']['inception_date']
-        inception_value = prev_master['meta']['inception_value']
+        prev_date = self.master_json['meta']['current_date']
+        inception_date = self.master_json['meta']['inception_date']
+        inception_value = self.master_json['meta']['inception_value']
         new_date = self.eval_date if self.eval_date else self._latest_market_date()
-        prev_portfolio_value = prev_master['portfolio_history'][-1]['value']
+        prev_portfolio_value = self.master_json['portfolio_history'][-1]['value']
 
         # Avoid duplicate regeneration
         if new_date == prev_date:
-            print("⚠️ Evaluation date equals previous date; skipping update.")
-            return prev_master
+            error_msg = f"Evaluation date {new_date} equals previous date. Cannot generate duplicate weekly update."
+            logging.error(error_msg)
+            raise ValueError(error_msg)
 
-        tickers = [s['ticker'] for s in prev_master['stocks']]
-        print(f"Fetching prices for {len(tickers)} stocks + 2 benchmarks (Alpha Vantage API)")
-        print("Rate limiting: 5 requests/minute (12 sec between calls)...")
+        tickers = [s['ticker'] for s in self.master_json['stocks']]
+        logging.info(f"Fetching prices for {len(tickers)} stocks + 2 benchmarks (Alpha Vantage API)")
+        logging.info("Rate limiting: 5 requests/minute (12 sec between calls)...")
 
-        # Fetch stock prices with rate limiting (5 req/min = 12 sec between calls)
+        # Fetch stock prices with rate limiting (5 req/min = 12 sec between calls for Alpha Vantage)
         price_data = {}
+        price_sources = {}  # Track source for each symbol
         for i, ticker in enumerate(tickers, 1):
-            print(f"→ [{i}/{len(tickers)}] Fetching {ticker}...")
+            logging.info(f"→ [{i}/{len(tickers)}] Fetching {ticker}...")
+            used_alphavantage = False
+            
             quote = self._fetch_alphavantage_quote(ticker)
             if quote:
-                price_data[ticker] = quote
+                used_alphavantage = True
             else:
-                # Use previous price as fallback
-                prev_stock = next(s for s in prev_master['stocks'] if s['ticker'] == ticker)
-                price_data[ticker] = {
-                    'date': prev_date,
-                    'close': prev_stock['prices'][prev_date]
-                }
-                print(f"  ↳ Using previous price as fallback: ${price_data[ticker]['close']}")
+                # Retry with delay
+                logging.info(f"  ⟳ Retry attempt for {ticker}...")
+                time.sleep(5)
+                quote = self._fetch_alphavantage_quote(ticker)
+                if quote:
+                    used_alphavantage = True
             
-            # Rate limit (skip delay on last item)
+            if not quote and self.marketstack_key:
+                # Fallback to Marketstack
+                logging.info(f"  ⟳ Trying Marketstack for {ticker}...")
+                quote = self._fetch_marketstack_quote(ticker)
+                if quote:
+                    used_alphavantage = False  # Track that we used Marketstack
+            
+            if quote:
+                price_data[ticker] = quote
+                price_sources[ticker] = quote.get('source', 'Unknown')
+            else:
+                # Critical failure - cannot proceed without current prices
+                raise ValueError(f"Failed to fetch price for {ticker} from all sources. Cannot generate accurate portfolio data.")
+            
+            # Rate limiting (skip on last item)
             if i < len(tickers):
-                time.sleep(12)
+                if used_alphavantage:
+                    time.sleep(12)  # Alpha Vantage: 5 req/min
+                elif quote and quote.get('source') == 'Marketstack':
+                    time.sleep(2)   # Marketstack: lighter rate limit
 
         # Build updated stocks list
         updated_stocks = []
-        for stock in prev_master['stocks']:
+        for stock in self.master_json['stocks']:
             t = stock['ticker']
             current_price = price_data[t]['close']
             
@@ -455,54 +596,57 @@ Generate the updated master.json for Week {self.week_number}.
         portfolio_weekly_pct = ((portfolio_current_value / prev_portfolio_value) - 1) * 100 if prev_portfolio_value else 0.0
         portfolio_total_pct = ((portfolio_current_value / inception_value) - 1) * 100 if inception_value else 0.0
 
-        # Benchmarks: S&P 500 (SPY ETF as proxy), Bitcoin (use crypto endpoint fallback)
-        bench_symbols = {"sp500": "SPY", "bitcoin": "BTC"}  # SPY as S&P proxy
-        print("\nFetching benchmarks...")
+        # Benchmarks: Fetch based on configuration from master.json
+        logging.info("Fetching benchmarks...")
         bench_data = {}
+        bench_sources = {}  # Track source for each benchmark
         
-        for key, symbol in bench_symbols.items():
-            print(f"→ Fetching {key.upper()} ({symbol})...")
-            if key == 'bitcoin':
-                # Bitcoin requires CRYPTO endpoint
-                url = 'https://www.alphavantage.co/query'
-                params = {
-                    'function': 'CURRENCY_EXCHANGE_RATE',
-                    'from_currency': 'BTC',
-                    'to_currency': 'USD',
-                    'apikey': self.alphavantage_key
-                }
-                try:
-                    response = requests.get(url, params=params, timeout=10)
-                    data = response.json()
-                    if 'Realtime Currency Exchange Rate' in data:
-                        rate = data['Realtime Currency Exchange Rate']
-                        bench_data[key] = {
-                            'date': rate.get('6. Last Refreshed', new_date)[:10],
-                            'close': float(rate.get('5. Exchange Rate', 0))
-                        }
-                    else:
-                        print(f"⚠️ Bitcoin data unavailable, using previous value")
-                        prev_btc = prev_master['benchmarks']['bitcoin']['history'][-1]['close']
-                        bench_data[key] = {'date': prev_date, 'close': prev_btc}
-                except Exception as e:
-                    print(f"⚠️ Bitcoin fetch failed: {e}")
-                    prev_btc = prev_master['benchmarks']['bitcoin']['history'][-1]['close']
-                    bench_data[key] = {'date': prev_date, 'close': prev_btc}
+        # Extract benchmark config from master.json
+        bench_config = self.master_json.get('benchmarks', {})
+        
+        for bench_key in bench_config.keys():
+            # Derive symbol and type from benchmark key or use defaults
+            # Expected: sp500 -> SPY (stock), bitcoin -> BTC (crypto)
+            if bench_key == 'sp500':
+                symbol = 'SPY'
+                bench_type = 'stock'
+            elif bench_key == 'bitcoin':
+                symbol = 'BTC'
+                bench_type = 'crypto'
             else:
-                quote = self._fetch_alphavantage_quote(symbol)
-                if quote:
-                    bench_data[key] = quote
-                else:
-                    # Fallback to previous value
-                    prev_val = prev_master['benchmarks'][key]['history'][-1]['close']
-                    bench_data[key] = {'date': prev_date, 'close': prev_val}
-                    print(f"  ↳ Using previous value: ${bench_data[key]['close']}")
+                # Future-proof: try to derive from key name
+                symbol = bench_key.upper()
+                bench_type = 'stock'  # Default to stock
             
-            time.sleep(12)  # Rate limit
+            logging.info(f"Fetching {bench_key.upper()} ({symbol}, type: {bench_type})...")
+            
+            if bench_type == 'crypto':
+                # Use crypto endpoint
+                quote = self._fetch_alphavantage_crypto(symbol, to_currency='USD')
+                if not quote:
+                    raise ValueError(f"Failed to fetch {bench_key.upper()} ({symbol}) crypto price from Alpha Vantage.")
+            else:
+                # Use regular stock quote with fallback
+                quote = self._fetch_alphavantage_quote(symbol)
+                if not quote and self.marketstack_key:
+                    logging.info(f"Trying Marketstack for {bench_key.upper()}...")
+                    quote = self._fetch_marketstack_quote(symbol)
+                
+                if not quote:
+                    raise ValueError(f"Failed to fetch {bench_key.upper()} ({symbol}) price from all sources. Cannot generate accurate portfolio data.")
+            
+            bench_data[bench_key] = quote
+            bench_sources[bench_key] = quote.get('source', 'Unknown')
+            
+            # Rate limiting based on source
+            if quote.get('source') == 'Marketstack':
+                time.sleep(2)   # Marketstack: 2 sec delay
+            else:
+                time.sleep(12)  # Alpha Vantage: 12 sec delay
 
         # Update benchmarks
         updated_benchmarks = {}
-        for bench_key, series in prev_master['benchmarks'].items():
+        for bench_key, series in self.master_json['benchmarks'].items():
             inception_reference = series['inception_reference']
             history_prev = series['history']
             prev_close = history_prev[-1]['close']
@@ -529,11 +673,11 @@ Generate the updated master.json for Week {self.week_number}.
             "weekly_pct": round(portfolio_weekly_pct, 2),
             "total_pct": round(portfolio_total_pct, 2)
         }
-        updated_portfolio_history = prev_master['portfolio_history'] + [new_history_entry]
+        updated_portfolio_history = self.master_json['portfolio_history'] + [new_history_entry]
 
         # Normalized chart entry
-        spx_first_ref = prev_master['benchmarks']['sp500']['inception_reference']
-        btc_first_ref = prev_master['benchmarks']['bitcoin']['inception_reference']
+        spx_first_ref = self.master_json['benchmarks']['sp500']['inception_reference']
+        btc_first_ref = self.master_json['benchmarks']['bitcoin']['inception_reference']
         spx_close = updated_benchmarks['sp500']['history'][-1]['close']
         btc_close = updated_benchmarks['bitcoin']['history'][-1]['close']
         
@@ -549,7 +693,7 @@ Generate the updated master.json for Week {self.week_number}.
 
         updated_master = {
             "meta": {
-                "portfolio_name": prev_master['meta']['portfolio_name'],
+                "portfolio_name": self.master_json['meta']['portfolio_name'],
                 "inception_date": inception_date,
                 "inception_value": inception_value,
                 "current_date": new_date
@@ -562,14 +706,21 @@ Generate the updated master.json for Week {self.week_number}.
             },
             "benchmarks": updated_benchmarks,
             "portfolio_history": updated_portfolio_history,
-            "normalized_chart": prev_master['normalized_chart'] + [normalized_entry]
+            "normalized_chart": self.master_json['normalized_chart'] + [normalized_entry]
         }
 
-        # Save to consolidated master data (primary location)
+        # Save to consolidated master data (primary location) - atomic write
         MASTER_DATA_DIR.mkdir(exist_ok=True)
         master_path = MASTER_DATA_DIR / "master.json"
-        with open(master_path, 'w') as f:
-            json.dump(updated_master, f, indent=2)
+        temp_path = master_path.with_suffix('.tmp')
+        try:
+            with open(temp_path, 'w') as f:
+                json.dump(updated_master, f, indent=2)
+            temp_path.replace(master_path)  # Atomic on POSIX, near-atomic on Windows
+        except Exception as e:
+            if temp_path.exists():
+                temp_path.unlink()
+            raise
 
         # Archive timestamped backup
         ARCHIVE_DIR.mkdir(exist_ok=True)
@@ -585,22 +736,40 @@ Generate the updated master.json for Week {self.week_number}.
             json.dump(updated_master, f, indent=2)
 
         self.master_json = updated_master
-        print(f"✓ Alpha Vantage data engine completed for Week {self.week_number}")
-        print(f"  → Primary: {master_path}")
-        print(f"  → Archive: {archive_path}")
-        print(f"  → Legacy:  {legacy_path} (optional)")
-        # Generate hero image then snippet share card for alphavantage path
-        try:
-            self.generate_hero_image()
-        except Exception as e:
-            print(f"⚠️ Hero image generation failed: {e}")
-        try:
-            self.generate_snippet_card()
-        except Exception as e:
-            print(f"⚠️ Snippet card generation failed: {e}")
+        
+        # Build detailed price report
+        price_report = {}
+        for ticker in tickers:
+            price_report[ticker] = {
+                'price': f"${price_data[ticker]['close']:.2f}",
+                'date': price_data[ticker]['date'],
+                'source': price_sources.get(ticker, 'Unknown')
+            }
+        price_report['SPX (S&P 500)'] = {
+            'price': f"${bench_data['sp500']['close']:.2f}",
+            'date': bench_data['sp500']['date'],
+            'source': bench_sources.get('sp500', 'Unknown')
+        }
+        price_report['BTC (Bitcoin)'] = {
+            'price': f"${bench_data['bitcoin']['close']:.2f}",
+            'date': bench_data['bitcoin']['date'],
+            'source': bench_sources.get('bitcoin', 'Unknown')
+        }
+        
+        self.add_step("Fetch Market Prices", "success",
+                     f"Fetched prices for {len(tickers)} stocks + 2 benchmarks",
+                     {'prices': price_report})
+        
+        logging.info(f"Alpha Vantage data engine completed for Week {self.week_number}")
+        logging.info(f"  → Primary: {master_path}")
+        logging.info(f"  → Archive: {archive_path}")
+        logging.info(f"  → Legacy:  {legacy_path} (optional)")
+        
+        # Generate media assets
+        self._generate_media_assets()
         return updated_master
 
-    # ===================== SNIPPET CARD GENERATION (Pillow) =====================
+    # ===================== HERO IMAGE GENERATION (Remote + Overlay) =====================
     def _font(self, size: int):
         candidates = [
             Path("C:/Windows/Fonts/SegoeUI-Semibold.ttf"),
@@ -608,94 +777,11 @@ Generate the updated master.json for Week {self.week_number}.
             Path("C:/Windows/Fonts/Arial.ttf"),
             Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")
         ]
-        face = None
-        for c in candidates:
-            if c.exists():
-                face = str(c)
-                break
+        face = next((str(c) for c in candidates if c.exists()), "Arial")
         try:
-            return ImageFont.truetype(face or "Arial", size=size)
+            return ImageFont.truetype(face, size=size)
         except Exception:
             return ImageFont.load_default()
-
-    def generate_snippet_card(self):
-        """Create 1200x630 PNG snippet card using latest master_json metrics."""
-        if not self.master_json:
-            raise ValueError("master_json not loaded")
-        width, height = 1200, 630
-        padding = 72
-        # Build radial purple gradient background
-        base = Image.new('RGBA', (width, height), (10,10,10,255))
-        grad = Image.new('L', (width, height))
-        cx, cy = width*0.4, height*0.35
-        maxd = (width**2 + height**2)**0.5
-        pix = grad.load()
-        for y in range(height):
-            for x in range(width):
-                d = ((x-cx)**2 + (y-cy)**2)**0.5
-                v = max(0, 255 - int((d/maxd)*255))
-                pix[x,y] = v
-        grad = grad.filter(ImageFilter.GaussianBlur(160))
-        overlay = Image.new('RGBA', (width, height), (58,0,104,255))
-        overlay.putalpha(grad)
-        img = Image.alpha_composite(base, overlay)
-
-        # Metrics extraction
-        ph = self.master_json.get('portfolio_history', [])
-        spx = self.master_json.get('benchmarks', {}).get('sp500', {}).get('history', [])
-        if ph and spx:
-            lp = ph[-1]; ls = spx[-1]
-            week_str = f"{lp.get('weekly_pct'):.2f}%" if lp.get('weekly_pct') is not None else "--"
-            total_str = f"{lp.get('total_pct'):.2f}%" if lp.get('total_pct') is not None else "--"
-            alpha_str = "--"
-            if lp.get('total_pct') is not None and ls.get('total_pct') is not None:
-                alpha_val = lp['total_pct'] - ls['total_pct']
-                alpha_str = f"{alpha_val:.2f}%"
-        else:
-            week_str = total_str = alpha_str = "--"
-        inception = self.master_json.get('meta', {}).get('inception_date')
-        current_date = self.master_json.get('meta', {}).get('current_date')
-        date_range = f"{inception} → {current_date}" if inception and current_date else ""
-
-        d = ImageDraw.Draw(img)
-        # Badge
-        badge_text = f"Week {self.week_number}"; badge_font = self._font(36)
-        bbox = d.textbbox((0,0), badge_text, font=badge_font)
-        bw = bbox[2]-bbox[0]; bh = bbox[3]-bbox[1]
-        pad_x, pad_y = 28, 14
-        d.rounded_rectangle([padding, padding, padding + bw + pad_x*2, padding + bh + pad_y*2], radius=50, fill=(30,27,75,255))
-        d.text((padding+pad_x, padding+pad_y), badge_text, font=badge_font, fill=(230,230,255,255))
-        # Title
-        title_font = self._font(74)
-        title_text = f"AI Portfolio Weekly Performance"
-        d.text((padding, padding+bh+pad_y*2+34), title_text, font=title_font, fill=(255,255,255,240))
-        block_y = padding+bh+pad_y*2+34 + 110
-        metric_font = self._font(34)
-        label_font = self._font(14)
-        def draw_metric(x,label,value,color=(255,255,255,230)):
-            d.text((x, block_y), label.upper(), font=label_font, fill=(180,180,200,200))
-            d.text((x, block_y+22), value, font=metric_font, fill=color)
-        alpha_color = (74,222,128,255) if (not alpha_str.startswith('-') and alpha_str != '--') else (248,113,113,255)
-        draw_metric(padding, 'Week Change', week_str)
-        draw_metric(padding+420, 'Since Inception', total_str)
-        draw_metric(padding+840, 'Alpha vs SPX', alpha_str, alpha_color)
-        footer_font = self._font(26)
-        if date_range:
-            d.text((padding, height-padding-40), date_range, font=footer_font, fill=(190,190,190,230))
-        d.text((width-padding-330, height-padding-40), 'quantuminvestor.net', font=footer_font, fill=(190,190,210,230))
-
-        try:
-            out_path = REPO_ROOT / 'Media' / f"W{self.week_number}-card.png"
-            out_path.parent.mkdir(exist_ok=True)
-            img.convert('RGB').save(out_path, format='PNG')
-            print(f"✓ Snippet card generated: {out_path}")
-            self.add_step("Generate Snippet Card", "success", 
-                         f"Created 1200x630 social preview card",
-                         {'output_file': str(out_path)})
-        except Exception as e:
-            self.add_step("Generate Snippet Card", "error", 
-                         f"Failed to save snippet card: {str(e)}")
-            raise
 
     # ===================== HERO IMAGE GENERATION (Remote + Overlay) =====================
     def generate_hero_image(self, query: str = "futuristic finance data"):
@@ -726,13 +812,13 @@ Generate the updated master.json for Week {self.week_number}.
             key = os.getenv('PEXELS_API_KEY');
             if not key: return None
             try:
-                resp = requests.get('https://api.pexels.com/v1/search', headers={'Authorization': key}, params={'query': q, 'orientation': 'landscape', 'per_page': 3}, timeout=10)
+                resp = self.session.get('https://api.pexels.com/v1/search', headers={'Authorization': key}, params={'query': q, 'orientation': 'landscape', 'per_page': 3}, timeout=10)
                 if resp.status_code != 200: return None
                 data = resp.json().get('photos', [])
                 for p in data:
                     src = p.get('src', {}).get('large') or p.get('src', {}).get('original')
                     if src:
-                        img_resp = requests.get(src, timeout=15)
+                        img_resp = self.session.get(src, timeout=15)
                         if img_resp.status_code == 200:
                             return Image.open(io.BytesIO(img_resp.content)).convert('RGBA')
             except Exception:
@@ -742,13 +828,13 @@ Generate the updated master.json for Week {self.week_number}.
             key = os.getenv('PIXABAY_API_KEY');
             if not key: return None
             try:
-                resp = requests.get('https://pixabay.com/api/', params={'key': key, 'q': q, 'image_type': 'photo', 'orientation': 'horizontal', 'per_page': 3, 'safesearch': 'true'}, timeout=10)
+                resp = self.session.get('https://pixabay.com/api/', params={'key': key, 'q': q, 'image_type': 'photo', 'orientation': 'horizontal', 'per_page': 3, 'safesearch': 'true'}, timeout=10)
                 if resp.status_code != 200: return None
                 hits = resp.json().get('hits', [])
                 for h in hits:
                     src = h.get('largeImageURL') or h.get('webformatURL')
                     if src:
-                        img_resp = requests.get(src, timeout=15)
+                        img_resp = self.session.get(src, timeout=15)
                         if img_resp.status_code == 200:
                             return Image.open(io.BytesIO(img_resp.content)).convert('RGBA')
             except Exception:
@@ -758,11 +844,18 @@ Generate the updated master.json for Week {self.week_number}.
             # Placeholder for future API
             return None
 
-        providers = [fetch_pexels, fetch_pixabay, fetch_lummi]
+        providers = [
+            ('Pexels', fetch_pexels),
+            ('Pixabay', fetch_pixabay),
+            ('Lummi', fetch_lummi)
+        ]
         remote = None
-        for provider in providers:
+        image_source = None
+        for source_name, provider in providers:
             remote = provider(query)
             if remote:
+                image_source = source_name
+                logging.info(f"Using image from {source_name}")
                 break
 
         # --- Fallback gradient ---
@@ -784,7 +877,7 @@ Generate the updated master.json for Week {self.week_number}.
             dmask.rectangle([0,0,width,int(height*0.55)], fill=150)
             shadow = Image.new('RGBA', (width, height), (0,0,0,160)); shadow.putalpha(mask)
             img = Image.alpha_composite(img, shadow)
-            source_note = 'remote'
+            source_note = image_source or 'remote'
         else:
             base = Image.new('RGBA', (width, height), (10,10,10,255))
             grad = Image.new('L', (width, height))
@@ -828,7 +921,7 @@ Generate the updated master.json for Week {self.week_number}.
             out_path = REPO_ROOT / 'Media' / f"W{self.week_number}.webp"
             out_path.parent.mkdir(exist_ok=True)
             img.convert('RGB').save(out_path, format='WEBP', quality=90)
-            print(f"✓ Hero image generated: {out_path} ({source_note})")
+            logging.info(f"Hero image generated: {out_path} ({source_note})")
             self.add_step("Generate Hero Image", "success", 
                          f"Created 1200x800 hero image ({source_note})",
                          {'output_file': str(out_path), 'image_source': source_note})
@@ -839,7 +932,7 @@ Generate the updated master.json for Week {self.week_number}.
     
     def run_prompt_b(self):
         """Prompt B: Narrative Writer - Generate HTML content"""
-        print("\n📝 Running Prompt B: Narrative Writer...")
+        logging.info("Running Prompt B: Narrative Writer...")
         
         try:
             system_prompt = "You are the GenAi Chosen Narrative Writer. Follow Prompt B specifications exactly."
@@ -885,15 +978,15 @@ This is for Week {self.week_number}.
                 try:
                     self.seo_json = json.loads(json_match.group(1))
                 except json.JSONDecodeError as e:
-                    print(f"⚠️ Failed to parse SEO JSON: {e}")
+                    logging.warning(f"Failed to parse SEO JSON: {e}")
                     self.seo_json = self.generate_fallback_seo()
                     seo_status = "warning"
             else:
-                print("⚠️ No SEO JSON found, generating fallback")
+                logging.warning("No SEO JSON found, generating fallback")
                 self.seo_json = self.generate_fallback_seo()
                 seo_status = "warning"
             
-            print("✓ Prompt B completed - narrative and SEO generated")
+            logging.info("Prompt B completed - narrative and SEO generated")
             
             self.add_step("Prompt B - Narrative Writer", seo_status, 
                          "Generated narrative HTML and SEO metadata",
@@ -979,36 +1072,35 @@ This is for Week {self.week_number}.
         }
 
         head_markup = f"""<head>
-    <meta charset=\"UTF-8\">
-    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
-    <title>{title}</title>
-    <meta name=\"description\" content=\"{meta_desc}\">
-    <link rel=\"canonical\" href=\"{canonical}\">
-    <meta name=\"author\" content=\"Michael Gavrilov\">
-    <meta name=\"theme-color\" content=\"#000000\">
-    <meta http-equiv=\"X-Content-Type-Options\" content=\"nosniff\">
-    <meta http-equiv=\"X-Frame-Options\" content=\"SAMEORIGIN\">
-    <meta http-equiv=\"Content-Security-Policy\" content=\"{csp_policy}\">
-    <meta name=\"referrer\" content=\"strict-origin-when-cross-origin\">
-    <meta property=\"og:type\" content=\"article\">
-    <meta property=\"og:url\" content=\"{og_url}\">
-    <meta property=\"og:title\" content=\"{og_title}\">
-    <meta property=\"og:description\" content=\"{og_desc}\">
-    <meta property=\"og:image\" content=\"{og_image}\">
-    <meta property=\"article:published_time\" content=\"{published_iso}\">
-    <meta property=\"article:modified_time\" content=\"{modified_iso}\">
-    <meta name=\"twitter:card\" content=\"{twitter_card}\">
-    <meta name=\"twitter:site\" content=\"@qid2025\">
-    <meta name=\"twitter:title\" content=\"{twitter_title}\">
-    <meta name=\"twitter:description\" content=\"{twitter_desc}\">
-    <meta name=\"twitter:image\" content=\"{twitter_image}\">
-    <link rel=\"icon\" href=\"../Media/favicon.ico\" type=\"image/x-icon\">
-    <link rel=\"stylesheet\" href=\"../{self.stylesheet_name}\">
-    <script src=\"../js/template-loader.js\" defer nonce=\"{self.nonce}\"></script>
-    <script src=\"../js/mobile-menu.js\" defer nonce=\"{self.nonce}\"></script>
-    <script src=\"../js/tldr.js\" defer nonce=\"{self.nonce}\"></script>
-    <script type=\"application/ld+json\" nonce=\"{self.nonce}\">{json.dumps(blog_ld, separators=(',',':'))}</script>
-    <script type=\"application/ld+json\" nonce=\"{self.nonce}\">{json.dumps(breadcrumbs_ld, separators=(',',':'))}</script>
+  <meta charset=\"UTF-8\">
+  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
+  <title>{title}</title>
+  <meta name=\"description\" content=\"{meta_desc}\">
+  <meta name=\"author\" content=\"Michael Gavrilov\">
+  <meta name=\"theme-color\" content=\"#000000\">
+  <meta http-equiv=\"Content-Security-Policy\" content=\"{csp_policy}\">
+  <meta name=\"referrer\" content=\"strict-origin-when-cross-origin\">
+  <link rel=\"canonical\" href=\"{canonical}\">
+  <link rel=\"icon\" href=\"../Media/favicon.ico\" type=\"image/x-icon\">
+  <meta property=\"og:type\" content=\"article\">
+  <meta property=\"og:url\" content=\"{og_url}\">
+  <meta property=\"og:title\" content=\"{og_title}\">
+  <meta property=\"og:description\" content=\"{og_desc}\">
+  <meta property=\"og:image\" content=\"{og_image}\">
+  <meta property=\"article:published_time\" content=\"{published_iso}\">
+  <meta property=\"article:modified_time\" content=\"{modified_iso}\">
+  <meta name=\"twitter:card\" content=\"{twitter_card}\">
+  <meta name=\"twitter:site\" content=\"@qid2025\">
+  <meta name=\"twitter:title\" content=\"{twitter_title}\">
+  <meta name=\"twitter:description\" content=\"{twitter_desc}\">
+  <meta name=\"twitter:image\" content=\"{twitter_image}\">
+  <link rel=\"stylesheet\" href=\"../{self.stylesheet_name}\">
+  <script src=\"../js/template-loader.js\" defer nonce=\"{self.nonce}\"></script>
+  <script src=\"../js/mobile-menu.js\" defer nonce=\"{self.nonce}\"></script>
+  <script src=\"../js/tldr.js\" defer nonce=\"{self.nonce}\"></script>
+    <!-- Component styles moved to global stylesheet -->
+    <script type=\"application/ld+json\">{json.dumps(blog_ld, separators=(',',':'))}</script>
+    <script type=\"application/ld+json\">{json.dumps(breadcrumbs_ld, separators=(',',':'))}</script>
 </head>"""
 
         new_html = re.sub(r'<head>.*?</head>', head_markup, html, flags=re.DOTALL | re.IGNORECASE)
@@ -1030,6 +1122,7 @@ This is for Week {self.week_number}.
         ]
         for fp in root_files:
             if not fp.exists():
+                logging.warning(f"Static file not found: {fp}")
                 continue
             try:
                 content = fp.read_text(encoding='utf-8')
@@ -1049,50 +1142,13 @@ This is for Week {self.week_number}.
                     return tag
                 content = re.sub(r'<script[^>]*>', add_nonce, content)
                 fp.write_text(content, encoding='utf-8')
-                print(f"✓ Hardened static page: {fp.name}")
+                logging.info(f"Hardened static page: {fp.name}")
             except Exception as e:
-                print(f"⚠️ Failed hardening {fp.name}: {e}")
-
-    def cleanup_existing_weekly_posts(self):
-        """Remove inline margin styles (margin-bottom / margin-top) and apply utility classes mb-6 / mt-12."""
-        posts_dir = REPO_ROOT / 'Posts'
-        for fp in posts_dir.glob('GenAi-Managed-Stocks-Portfolio-Week-*.html'):
-            try:
-                original = fp.read_text(encoding='utf-8')
-                updated = original
-                # Remove specific inline margin styles
-                updated = re.sub(r'\sstyle="margin-bottom:1.5rem;"', '', updated)
-                updated = re.sub(r'\sstyle="margin-top:3rem;margin-bottom:1.5rem;"', '', updated)
-                # Ensure mb-6 added where style removed for p and ul
-                def add_mb6(match):
-                    cls = match.group(1)
-                    classes = cls.split()
-                    if 'mb-6' not in classes:
-                        classes.append('mb-6')
-                    return 'class="' + ' '.join(classes) + '"'
-                updated = re.sub(r'class="([^"]+)"(?![^>]*mb-6)(?=[^>]*>)(?=[^>]*(<p|<ul))', add_mb6, updated)
-                # Headings: add mt-12 mb-6 if they had inline style removed or if pattern suggests they are section headers without spacing utilities
-                def heading_utilities(m):
-                    tag = m.group(1)
-                    cls = m.group(2)
-                    classes = cls.split()
-                    if 'mt-12' not in classes:
-                        classes.append('mt-12')
-                    if 'mb-6' not in classes:
-                        classes.append('mb-6')
-                    return f'<{tag} class="' + ' '.join(classes) + '"'
-                updated = re.sub(r'<(h2)\s+class="([^"]+)"', heading_utilities, updated)
-                if updated != original:
-                    fp.write_text(updated, encoding='utf-8')
-                    print(f"✓ Cleaned inline styles: {fp.name}")
-                else:
-                    print(f"• No inline style changes needed: {fp.name}")
-            except Exception as e:
-                print(f"⚠️ Failed cleaning {fp.name}: {e}")
+                logging.warning(f"Failed hardening {fp.name}: {e}")
     
     def run_prompt_c(self):
         """Prompt C: Visual Generator - Create table and chart"""
-        print("\n📊 Running Prompt C: Visual Generator...")
+        logging.info("Running Prompt C: Visual Generator...")
         
         system_prompt = "You are the GenAi Chosen Visual Module Generator. Follow Prompt C specifications exactly."
         
@@ -1125,7 +1181,7 @@ This is for Week {self.week_number}.
             if table_match:
                 self.performance_table = table_match.group(0)
             else:
-                print("⚠️ Could not extract performance table from Prompt C response")
+                logging.warning("Could not extract performance table from Prompt C response")
                 self.performance_table = "<!-- Performance table not generated -->"
                 table_status = "warning"
             
@@ -1147,11 +1203,11 @@ This is for Week {self.week_number}.
                     i += 1
             
             if not self.performance_chart:
-                print("⚠️ Could not extract performance chart from Prompt C response")
+                logging.warning("Could not extract performance chart from Prompt C response")
                 self.performance_chart = "<!-- Performance chart not generated -->"
                 chart_status = "warning"
             
-            print("✓ Prompt C completed - visuals generated")
+            logging.info("Prompt C completed - visuals generated")
             
             overall_status = "success" if table_status == "success" and chart_status == "success" else "warning"
             self.add_step("Prompt C - Visual Generator", overall_status, 
@@ -1167,7 +1223,7 @@ This is for Week {self.week_number}.
     
     def run_prompt_d(self):
         """Prompt D: Final Assembler - Create complete HTML page"""
-        print("\n🔨 Running Prompt D: Final HTML Assembler...")
+        logging.info("Running Prompt D: Final HTML Assembler...")
         
         system_prompt = "You are the GenAi Chosen Final Page Builder. Follow Prompt D specifications exactly."
         
@@ -1184,7 +1240,7 @@ This is for Week {self.week_number}.
                     self.narrative_html[insert_pos:]
                 )
             else:
-                print("⚠️ Could not find Performance Snapshot insertion point")
+                logging.warning("Could not find Performance Snapshot insertion point")
         
         if self.performance_chart and self.performance_chart not in self.narrative_html:
             # Find insertion point after "Performance Since Inception" section
@@ -1198,7 +1254,7 @@ This is for Week {self.week_number}.
                     self.narrative_html[insert_pos:]
                 )
             else:
-                print("⚠️ Could not find Performance Since Inception insertion point")
+                logging.warning("Could not find Performance Since Inception insertion point")
         
         user_message = f"""
 {self.prompts['D']}
@@ -1234,7 +1290,7 @@ Generate the complete HTML file for Week {self.week_number}.
         try:
             final_html = self._apply_standard_head(final_html)
         except Exception as e:
-            print(f"⚠️ Standard head template failed: {e}")
+            logging.warning(f"Standard head template failed: {e}")
 
         # ================= TLDR STRUCTURAL INJECTION (simplified, external script populates) =================
         try:
@@ -1245,36 +1301,36 @@ Generate the complete HTML file for Week {self.week_number}.
                 final_html = re.sub(r'<!-- TLDR STRIP.*?<div id="tldrStrip"[\s\S]*?</div>\s*', '', final_html, count=len(occurrences)-1, flags=re.IGNORECASE)
             if 'id="tldrStrip"' not in final_html:
                 tldr_markup = (
-                    '\n<!-- TLDR STRIP (populated by external tldr.js) -->\n'
-                    '<div id="tldrStrip" class="tldr-strip mb-10" aria-label="Weekly summary strip">\n'
-                    '  <div class="tldr-metric"><span>Week Change</span><span id="tldrWeek">--</span></div>\n'
-                    '  <div class="tldr-metric"><span>Since Inception</span><span id="tldrTotal">--</span></div>\n'
-                    '  <div class="tldr-metric"><span>Alpha vs SPX (Total)</span><span id="tldrAlpha">--</span></div>\n'
-                    '</div>\n'
+                    '\n            <!-- TLDR STRIP (Sandbox Style) -->\n'
+                    '            <div id="tldrStrip" class="tldr-strip mb-10" aria-label="Weekly summary strip">\n'
+                    '              <div class="tldr-metric"><span>Week Change</span><span id="tldrWeek">--</span></div>\n'
+                    '              <div class="tldr-metric"><span>Since Inception</span><span id="tldrTotal">--</span></div>\n'
+                    '              <div class="tldr-metric"><span>Alpha vs SPX (Total)</span><span id="tldrAlpha">--</span></div>\n'
+                    '            </div>\n'
                 )
                 prose_pos = final_html.find('<div class="prose')
                 if prose_pos != -1:
                     final_html = final_html[:prose_pos] + tldr_markup + final_html[prose_pos:]
         except Exception as e:
-            print(f"⚠️ TLDR structural injection failed: {e}")
+            logging.warning(f"TLDR structural injection failed: {e}")
         
         # Basic validation
         if not final_html.strip().startswith('<!DOCTYPE'):
-            print("⚠️ Warning: Generated HTML doesn't start with DOCTYPE")
+            logging.warning("Generated HTML doesn't start with DOCTYPE")
         if '</html>' not in final_html.lower():
-            print("⚠️ Warning: Generated HTML doesn't have closing </html> tag")
+            logging.warning("Generated HTML doesn't have closing </html> tag")
         
         # Check for required elements
         required_elements = ['<head>', '<body>', '<article>', 'class="prose']
         missing = [elem for elem in required_elements if elem not in final_html]
         if missing:
-            print(f"⚠️ Warning: Missing expected elements: {', '.join(missing)}")
+            logging.warning(f"Missing expected elements: {', '.join(missing)}")
         
         # ================= PERFORMANCE OPTIMIZATION =================
         try:
             final_html = self._optimize_performance(final_html)
         except Exception as e:
-            print(f"⚠️ Performance optimization failed: {e}")
+            logging.warning(f"Performance optimization failed: {e}")
 
         # Save to Posts folder
         try:
@@ -1282,7 +1338,7 @@ Generate the complete HTML file for Week {self.week_number}.
             with open(output_path, 'w', encoding='utf-8') as f:
                 f.write(final_html)
             
-            print(f"✓ Prompt D completed - {output_path.name} created ({len(final_html)} bytes)")
+            logging.info(f"Prompt D completed - {output_path.name} created ({len(final_html)} bytes)")
             
             # Validation warnings
             warnings = []
@@ -1334,9 +1390,9 @@ Generate the complete HTML file for Week {self.week_number}.
     
     def update_index_pages(self):
         """Update posts.html with dynamically generated listing from Posts/ directory"""
-        print("\n🔗 Regenerating posts.html listing...")
+        logging.info("Regenerating posts.html listing...")
         self._regenerate_posts_listing()
-        print("✓ posts.html regenerated with current weekly posts")
+        logging.info("posts.html regenerated with current weekly posts")
     
     def _regenerate_posts_listing(self):
         """Scan Posts/ directory and rebuild posts.html with standardized head and cards"""
@@ -1501,57 +1557,39 @@ Generate the complete HTML file for Week {self.week_number}.
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(posts_html)
         
-        print(f"✓ Generated posts.html with {len(posts_meta)} weekly posts")
+        logging.info(f"Generated posts.html with {len(posts_meta)} weekly posts")
     
     def run(self):
         """Execute full pipeline"""
-        print(f"\n{'='*60}")
-        print(f"GenAi Chosen Portfolio - Week {self.week_number} Automation")
-        print(f"{'='*60}")
+        logging.info("="*60)
+        logging.info(f"GenAi Chosen Portfolio - Week {self.week_number} Automation")
+        logging.info("="*60)
 
         try:
             self.load_master_json()
             
-            # Data acquisition: AI or Alpha Vantage
+            # Data acquisition: AI or Alpha Vantage (MUST succeed or abort)
             if self.data_source == 'alphavantage':
-                self.generate_master_from_alphavantage()
+                updated_master = self.generate_master_from_alphavantage()
+                if not updated_master:
+                    raise ValueError("Alpha Vantage data engine failed to generate updated master.json")
             else:
-                self.run_prompt_a()
+                updated_master = self.run_prompt_a()
+                if not updated_master:
+                    raise ValueError("Prompt A (AI data engine) failed to generate updated master.json")
             
-            # Narrative generation (if AI enabled)
+            # Narrative generation (only proceeds if data acquisition succeeded)
             if self.ai_enabled:
+                # All-or-nothing: generate content first, write file only if successful
                 self.run_prompt_b()
                 self.run_prompt_c()
-                self.run_prompt_d()
+                final_html = self.run_prompt_d()
+                # If we reached here, all prompts succeeded and file was written
             else:
-                # Fallback: data-only HTML
-                try:
-                    output_path = POSTS_DIR / f"GenAi-Managed-Stocks-Portfolio-Week-{self.week_number}.html"
-                    minimal_html = f"""<!DOCTYPE html>
-<html lang='en'>
-<head>
-  <meta charset='UTF-8'>
-  <title>GenAi-Managed Stocks Portfolio Week {self.week_number} (Data Only)</title>
-  <meta name='description' content='Weekly portfolio update (data-only mode).'>
-</head>
-<body style='background:#000; color:#fff; font-family:sans-serif; padding:2rem;'>
-  <article style='max-width:900px; margin:0 auto;'>
-    <h1>GenAi-Managed Stocks Portfolio Week {self.week_number}</h1>
-    <p><em>AI narrative skipped (no OPENAI_API_KEY). Raw data below:</em></p>
-    <pre style='white-space:pre-wrap; font-size:12px; background:#111; padding:1rem; border-radius:8px; overflow-x:auto;'>{json.dumps(self.master_json, indent=2)}</pre>
-    <p><a href='posts.html' style='color:#6366f1;'>← Back to Posts</a></p>
-  </article>
-</body>
-</html>"""
-                    with open(output_path, 'w', encoding='utf-8') as f:
-                        f.write(minimal_html)
-                    print(f"✓ Data-only HTML generated: {output_path.name}")
-                    self.add_step("Generate Data-Only HTML", "success", 
-                                 "Created fallback HTML with raw data (no AI narrative)")
-                except Exception as e:
-                    self.add_step("Generate Data-Only HTML", "error", 
-                                 f"Failed to create data-only HTML: {str(e)}")
-                    raise
+                # No AI available - fail fast, don't create incomplete output
+                error_msg = "AI client not initialized. Cannot generate weekly post without OpenAI API key."
+                self.add_step("Generate Weekly Post", "error", error_msg)
+                raise ValueError(error_msg)
 
             try:
                 self.update_index_pages()
@@ -1564,28 +1602,27 @@ Generate the complete HTML file for Week {self.week_number}.
             # Mark overall success
             self.report['success'] = True
             
-            print(f"\n{'='*60}")
-            print(f"✅ SUCCESS! Week {self.week_number} generated")
-            print(f"{'='*60}")
-            print(f"\nGenerated files:")
-            print(f"  PRIMARY:")
-            print(f"    • master data/master.json (consolidated, Week {self.week_number} appended)")
-            print(f"    • Posts/GenAi-Managed-Stocks-Portfolio-Week-{self.week_number}.html")
-            print(f"  ASSETS:")
-            print(f"    • Media/W{self.week_number}.webp (hero image)")
-            print(f"    • Media/W{self.week_number}-card.png (snippet card)")
-            print(f"  BACKUPS:")
-            print(f"    • master data/archive/master-{self.master_json['meta']['current_date'].replace('-', '')}.json")
-            print(f"    • Data/W{self.week_number}/master.json (legacy compatibility)")
+            logging.info("="*60)
+            logging.info(f"✅ SUCCESS! Week {self.week_number} generated")
+            logging.info("="*60)
+            logging.info("Generated files:")
+            logging.info("  PRIMARY:")
+            logging.info(f"    • master data/master.json (consolidated, Week {self.week_number} appended)")
+            logging.info(f"    • Posts/GenAi-Managed-Stocks-Portfolio-Week-{self.week_number}.html")
+            logging.info("  ASSETS:")
+            logging.info(f"    • Media/W{self.week_number}.webp (hero image)")
+            logging.info("  BACKUPS:")
+            logging.info(f"    • master data/archive/master-{self.master_json['meta']['current_date'].replace('-', '')}.json")
+            logging.info(f"    • Data/W{self.week_number}/master.json (legacy compatibility)")
             if not self.ai_enabled:
-                print(f"\n  NOTE: Data-only mode (enable OPENAI_API_KEY for full narrative)")
+                logging.info("  NOTE: Data-only mode (enable OPENAI_API_KEY for full narrative)")
             
             # Print detailed execution report
             self.print_report()
             
         except Exception as e:
             self.report['success'] = False
-            print(f"\n❌ ERROR: {str(e)}")
+            logging.error(f"ERROR: {str(e)}")
             import traceback
             traceback.print_exc()
             
@@ -1605,6 +1642,8 @@ def main():
                        help='Data source: ai (Prompt A via GPT-4) or alphavantage (Alpha Vantage API)')
     parser.add_argument('--alphavantage-key', type=str,
                        help='Alpha Vantage API key (default: read from ALPHAVANTAGE_API_KEY env var)')
+    parser.add_argument('--marketstack-key', type=str,
+                       help='Marketstack API key (default: read from MARKETSTACK_API_KEY env var)')
     parser.add_argument('--eval-date', type=str,
                         help='Manual override for evaluation date (YYYY-MM-DD). Uses this as current_date for week update.')
     parser.add_argument('--palette', type=str, default='default',
@@ -1620,6 +1659,7 @@ def main():
         model=args.model,
         data_source=args.data_source,
         alphavantage_key=args.alphavantage_key,
+        marketstack_key=args.marketstack_key,
         eval_date=args.eval_date,
         palette=args.palette
     )
