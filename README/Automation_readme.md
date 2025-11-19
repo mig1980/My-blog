@@ -39,6 +39,7 @@ GitHub Secrets store your API keys securely.
 | `OPENAI_API_KEY` | OpenAI API key for GPT-4 | ✅ Yes |
 | `ALPHAVANTAGE_API_KEY` | Alpha Vantage API key | ✅ Yes |
 | `MARKETSTACK_API_KEY` | Marketstack API key (fallback) | Optional |
+| `FINNHUB_API_KEY` | Finnhub API key (secondary pricing source) | Optional |
 | `PEXELS_API_KEY` | Pexels API for hero images | Optional |
 | `PIXABAY_API_KEY` | Pixabay API for hero images | Optional |
 
@@ -88,6 +89,7 @@ jobs:
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         ALPHAVANTAGE_API_KEY: ${{ secrets.ALPHAVANTAGE_API_KEY }}
         MARKETSTACK_API_KEY: ${{ secrets.MARKETSTACK_API_KEY }}
+        FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
         PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
         PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
       run: |
@@ -203,6 +205,7 @@ python portfolio_automation.py \
 | `--model` | OpenAI model name | `gpt-4-turbo-preview` |
 | `--eval-date` | Manual date (YYYY-MM-DD) | Current date |
 | `--palette` | Theme palette | `default` |
+| `--finnhub-key` | Override Finnhub API key (else env var) | From env |
 
 ---
 
@@ -320,6 +323,7 @@ Before enabling automation, test locally:
 $env:OPENAI_API_KEY="your-key-here"
 $env:ALPHAVANTAGE_API_KEY="your-key-here"
 $env:MARKETSTACK_API_KEY="your-key-here"
+$env:FINNHUB_API_KEY="your-key-here"
 ```
 
 ### 2. **Run Script**
@@ -343,6 +347,38 @@ Logs appear in your PowerShell terminal showing:
 - API calls and responses
 - File generation status
 - Final execution report with summary
+
+---
+
+## Price Source Fallback Order
+
+When using `--data-source alphavantage`, the script attempts to fetch each ticker and benchmark price with a resilient multi-provider chain:
+
+1. Alpha Vantage (primary)
+2. Finnhub (secondary)
+3. Marketstack (tertiary)
+
+If Alpha Vantage fails or returns no price, Finnhub is tried next (if key supplied). If Finnhub also fails, Marketstack is used (if key supplied). This improves robustness against transient outages or rate limits.
+
+### Logging Indicators
+
+- `→ Finnhub price acquired for TICKER` – Finnhub provided a stock/ETF price.
+- `Trying Finnhub for benchmark SPY...` – Finnhub used for benchmark fallback.
+- `Trying Finnhub crypto for BTC...` – Finnhub used for Bitcoin price.
+- `Finnhub fetch failed for TICKER: <error>` – Finnhub request error.
+
+### Rate Limits
+
+- **Finnhub Free Tier**: 5 API calls per minute (60 calls/hour)
+- **Automatic Throttling**: Script enforces 12-second intervals between Finnhub calls to stay within limits
+- **Impact**: When Finnhub is used as fallback, expect ~12s delay per ticker (mitigated by primary Alpha Vantage success)
+
+### Recommendations
+
+- Provide all three keys to maximize successful fetch likelihood.
+- Finnhub often has more generous intraday limits; useful during higher frequency testing.
+- Monitor logs to see which provider is most frequently used; consider upgrading that provider's tier if rate limits are hit often.
+- When testing with many tickers, Alpha Vantage primary success minimizes Finnhub throttle impact.
 
 ---
 
@@ -433,6 +469,7 @@ run: |
 - [OpenAI API](https://platform.openai.com/docs)
 - [Alpha Vantage](https://www.alphavantage.co/documentation/)
 - [Marketstack](https://marketstack.com/documentation)
+- [Finnhub](https://finnhub.io/docs/api)
 - [Pexels](https://www.pexels.com/api/documentation/)
 - [Pixabay](https://pixabay.com/api/docs/)
 

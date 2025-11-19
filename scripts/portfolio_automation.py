@@ -52,13 +52,14 @@ CSP_POLICY_TEMPLATE = (
 )
 
 class PortfolioAutomation:
-    def __init__(self, week_number=None, api_key=None, model="gpt-5.1", data_source="ai", alphavantage_key=None, marketstack_key=None, eval_date=None, palette="default", minify_css=False):
+    def __init__(self, week_number=None, api_key=None, model="gpt-5.1", data_source="ai", alphavantage_key=None, marketstack_key=None, finnhub_key=None, eval_date=None, palette="default", minify_css=False):
         self.week_number = week_number or self.detect_next_week()
         self.api_key = api_key or os.getenv('OPENAI_API_KEY')
         self.model = model
         self.data_source = data_source.lower()
         self.alphavantage_key = alphavantage_key or os.getenv('ALPHAVANTAGE_API_KEY')
         self.marketstack_key = marketstack_key or os.getenv('MARKETSTACK_API_KEY')
+        self.finnhub_key = finnhub_key or os.getenv('FINNHUB_API_KEY')
         self.client = None
         self.ai_enabled = False
         self.eval_date = None
@@ -105,6 +106,14 @@ class PortfolioAutomation:
             if not self.alphavantage_key:
                 raise ValueError("Alpha Vantage API key required. Set ALPHAVANTAGE_API_KEY environment variable.")
             logging.info(f"Using Alpha Vantage data source (key: {self.alphavantage_key[:8]}...)")
+        if self.finnhub_key:
+            logging.info(f"Finnhub enabled (key: {self.finnhub_key[:8]}...) - will use as secondary source/fallback")
+        else:
+            logging.info("Finnhub API key not set (FINNHUB_API_KEY). Skipping Finnhub fallback.")
+
+        # Finnhub rate limiting: 5 requests/minute = 1 request per 12 seconds
+        self.last_finnhub_call = 0  # timestamp of last Finnhub API call
+        self.finnhub_min_interval = 12  # seconds between Finnhub calls
 
         # Load prompts
         self.prompts = self.load_prompts()
@@ -499,6 +508,92 @@ Generate the updated master.json for Week {self.week_number}.
             logging.warning(f"Failed to fetch {symbol} from Marketstack: {e}")
             return None
 
+    # ===================== FINNHUB DATA FETCHERS =====================
+    def _fetch_finnhub_quote(self, symbol):
+        """Fetch latest quote for a stock/ETF from Finnhub.
+        Returns dict with date, close price, and source, or None on failure.
+        """
+        if not self.finnhub_key:
+            return None
+        
+        # Rate limit: 5 req/min = 12 seconds between calls
+        elapsed = time.time() - self.last_finnhub_call
+        if elapsed < self.finnhub_min_interval:
+            wait_time = self.finnhub_min_interval - elapsed
+            logging.debug(f"Finnhub rate limit: waiting {wait_time:.1f}s before request")
+            time.sleep(wait_time)
+        
+        url = 'https://finnhub.io/api/v1/quote'
+        params = {
+            'symbol': symbol,
+            'token': self.finnhub_key
+        }
+        try:
+            self.last_finnhub_call = time.time()  # Update timestamp before request
+            response = self.session.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            # Finnhub returns fields: c (current), pc (prev close), t (timestamp)
+            if 'c' in data and data.get('c') not in (None, 0):
+                ts = data.get('t')
+                try:
+                    date_clean = datetime.utcfromtimestamp(ts).strftime('%Y-%m-%d') if ts else self._latest_market_date()
+                except Exception:
+                    date_clean = self._latest_market_date()
+                return {
+                    'date': date_clean,
+                    'close': float(data.get('c', 0)),
+                    'source': 'Finnhub'
+                }
+            else:
+                logging.warning(f"Finnhub returned no usable quote for {symbol}")
+                return None
+        except Exception as e:
+            logging.warning(f"Finnhub fetch failed for {symbol}: {e}")
+            return None
+
+    def _fetch_finnhub_crypto(self, symbol):
+        """Fetch latest crypto price (BTC) from Finnhub (using BINANCE:BTCUSDT)."""
+        if not self.finnhub_key:
+            return None
+        
+        # Rate limit: 5 req/min = 12 seconds between calls
+        elapsed = time.time() - self.last_finnhub_call
+        if elapsed < self.finnhub_min_interval:
+            wait_time = self.finnhub_min_interval - elapsed
+            logging.debug(f"Finnhub rate limit: waiting {wait_time:.1f}s before crypto request")
+            time.sleep(wait_time)
+        
+        # Map generic 'BTC' symbol to Finnhub crypto symbol
+        finnhub_symbol = 'BINANCE:BTCUSDT' if symbol.upper() == 'BTC' else symbol
+        url = 'https://finnhub.io/api/v1/quote'
+        params = {
+            'symbol': finnhub_symbol,
+            'token': self.finnhub_key
+        }
+        try:
+            self.last_finnhub_call = time.time()  # Update timestamp before request
+            response = self.session.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            if 'c' in data and data.get('c') not in (None, 0):
+                ts = data.get('t')
+                try:
+                    date_clean = datetime.utcfromtimestamp(ts).strftime('%Y-%m-%d') if ts else self._latest_market_date()
+                except Exception:
+                    date_clean = self._latest_market_date()
+                return {
+                    'date': date_clean,
+                    'close': float(data.get('c', 0)),
+                    'source': 'Finnhub (Crypto)'
+                }
+            else:
+                logging.warning(f"Finnhub returned no usable crypto quote for {symbol}")
+                return None
+        except Exception as e:
+            logging.warning(f"Finnhub crypto fetch failed for {symbol}: {e}")
+            return None
+
     def generate_master_from_alphavantage(self):
         """Generate new week's master.json using Alpha Vantage API.
         Uses previous week's master.json as baseline, fetches latest prices,
@@ -542,6 +637,14 @@ Generate the updated master.json for Week {self.week_number}.
                 if quote:
                     used_alphavantage = True
             
+            # Finnhub fallback (before Marketstack)
+            if not quote and self.finnhub_key:
+                logging.info(f"  ⟳ Trying Finnhub for {ticker}...")
+                quote = self._fetch_finnhub_quote(ticker)
+                if quote:
+                    used_alphavantage = False
+                    logging.info(f"  → Finnhub price acquired for {ticker}: {quote['close']}")
+
             if not quote and self.marketstack_key:
                 # Fallback to Marketstack
                 logging.info(f"  ⟳ Trying Marketstack for {ticker}...")
@@ -621,13 +724,20 @@ Generate the updated master.json for Week {self.week_number}.
             logging.info(f"Fetching {bench_key.upper()} ({symbol}, type: {bench_type})...")
             
             if bench_type == 'crypto':
-                # Use crypto endpoint
+                # Alpha Vantage first
                 quote = self._fetch_alphavantage_crypto(symbol, to_currency='USD')
+                # Finnhub fallback
+                if not quote and self.finnhub_key:
+                    logging.info(f"Trying Finnhub crypto for {bench_key.upper()}...")
+                    quote = self._fetch_finnhub_crypto(symbol)
                 if not quote:
-                    raise ValueError(f"Failed to fetch {bench_key.upper()} ({symbol}) crypto price from Alpha Vantage.")
+                    raise ValueError(f"Failed to fetch {bench_key.upper()} ({symbol}) crypto price from Alpha Vantage/Finnhub.")
             else:
                 # Use regular stock quote with fallback
                 quote = self._fetch_alphavantage_quote(symbol)
+                if not quote and self.finnhub_key:
+                    logging.info(f"Trying Finnhub for benchmark {bench_key.upper()}...")
+                    quote = self._fetch_finnhub_quote(symbol)
                 if not quote and self.marketstack_key:
                     logging.info(f"Trying Marketstack for {bench_key.upper()}...")
                     quote = self._fetch_marketstack_quote(symbol)
@@ -1644,6 +1754,8 @@ def main():
                        help='Alpha Vantage API key (default: read from ALPHAVANTAGE_API_KEY env var)')
     parser.add_argument('--marketstack-key', type=str,
                        help='Marketstack API key (default: read from MARKETSTACK_API_KEY env var)')
+    parser.add_argument('--finnhub-key', type=str,
+                       help='Finnhub API key (default: read from FINNHUB_API_KEY env var)')
     parser.add_argument('--eval-date', type=str,
                         help='Manual override for evaluation date (YYYY-MM-DD). Uses this as current_date for week update.')
     parser.add_argument('--palette', type=str, default='default',
@@ -1660,6 +1772,7 @@ def main():
         data_source=args.data_source,
         alphavantage_key=args.alphavantage_key,
         marketstack_key=args.marketstack_key,
+        finnhub_key=args.finnhub_key,
         eval_date=args.eval_date,
         palette=args.palette
     )
