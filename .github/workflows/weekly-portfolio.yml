@@ -36,7 +36,7 @@ jobs:
       
       - name: Generate portfolio update
         env:
-          GH_TOKEN: ${{ secrets.GH_MODELS_TOKEN }}
+          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
           ALPHAVANTAGE_API_KEY: ${{ secrets.ALPHAVANTAGE_API_KEY }}
           FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
           MARKETSTACK_API_KEY: ${{ secrets.MARKETSTACK_API_KEY }}

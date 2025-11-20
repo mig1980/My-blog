@@ -10,9 +10,7 @@ import json
 import argparse
 from datetime import datetime, timedelta
 from pathlib import Path
-from azure.ai.inference import ChatCompletionsClient
-from azure.ai.inference.models import SystemMessage, UserMessage
-from azure.core.credentials import AzureKeyCredential
+from openai import OpenAI
 import re
 import time
 import requests
@@ -52,7 +50,7 @@ CSP_POLICY_TEMPLATE = (
 )
 
 class PortfolioAutomation:
-    def __init__(self, week_number=None, github_token=None, model="openai/gpt-5", 
+    def __init__(self, week_number=None, github_token=None, model="gpt-4.1", 
                  data_source="ai", alphavantage_key=None, marketstack_key=None, 
                  finnhub_key=None, eval_date=None, palette="default"):
         # Configuration
@@ -65,7 +63,7 @@ class PortfolioAutomation:
         self.stylesheet_name = 'styles.css'
         
         # API keys
-        self.github_token = github_token or os.getenv('GH_TOKEN')
+        self.azure_api_key = os.getenv('AZURE_OPENAI_API_KEY')
         self.alphavantage_key = alphavantage_key or os.getenv('ALPHAVANTAGE_API_KEY')
         self.marketstack_key = marketstack_key or os.getenv('MARKETSTACK_API_KEY')
         self.finnhub_key = finnhub_key or os.getenv('FINNHUB_API_KEY')
@@ -73,7 +71,7 @@ class PortfolioAutomation:
         # AI client state
         self.client = None
         self.ai_enabled = False
-        self.ai_provider = 'GitHub Models'
+        self.ai_provider = 'Azure OpenAI'
         
         # Evaluation date
         self.eval_date = None
@@ -98,21 +96,21 @@ class PortfolioAutomation:
             except ValueError:
                 logging.warning(f"Invalid --eval-date '{eval_date}' (expected YYYY-MM-DD). Ignoring override.")
 
-        # Initialize GitHub Models client
-        if self.github_token:
+        # Initialize Azure OpenAI client
+        if self.azure_api_key:
             try:
-                self.client = ChatCompletionsClient(
-                    endpoint="https://models.github.ai/inference",
-                    credential=AzureKeyCredential(self.github_token)
+                self.client = OpenAI(
+                    base_url="https://MyPortfolio.openai.azure.com/openai/v1/",
+                    api_key=self.azure_api_key
                 )
                 self.ai_enabled = True
-                logging.info(f"✓ GitHub Models initialized ({self.model})")
+                logging.info(f"✓ Azure OpenAI initialized (deployment: {self.model})")
             except Exception as e:
-                logging.error(f"✗ GitHub Models failed: {e}")
+                logging.error(f"✗ Azure OpenAI failed: {e}")
         
         # Validate configuration
         if self.data_source == 'ai' and not self.ai_enabled:
-            raise ValueError("AI mode requires GH_TOKEN. Use --data-source=alphavantage for data-only mode.")
+            raise ValueError("AI mode requires AZURE_OPENAI_API_KEY. Use --data-source=alphavantage for data-only mode.")
         if self.data_source == 'alphavantage' and not self.alphavantage_key:
             raise ValueError("Alpha Vantage mode requires ALPHAVANTAGE_API_KEY environment variable.")
         
@@ -270,13 +268,13 @@ class PortfolioAutomation:
                          f"Failed to load master.json: {str(e)}")
             raise
     
-    def call_ai(self, system_prompt, user_message, temperature=1.0, max_retries=3):
-        """Call GitHub Models AI API with retry logic and automatic fallback
+    def call_ai(self, system_prompt, user_message, temperature=0.7, max_retries=3):
+        """Call Azure OpenAI API with retry logic and automatic fallback
         
-        Note: GitHub Models only supports temperature=1.0 (default). Custom values are ignored.
+        Uses Azure OpenAI deployment with support for temperature control.
         """
         if not self.client:
-            raise ValueError("AI client not initialized. Set GH_TOKEN environment variable.")
+            raise ValueError("AI client not initialized. Set AZURE_OPENAI_API_KEY environment variable.")
         
         current_model = self.model
         last_error = None
@@ -284,14 +282,13 @@ class PortfolioAutomation:
         # Retry loop for transient network errors
         for attempt in range(max_retries):
             try:
-                # GitHub Models only supports default temperature (1.0)
-                # Don't pass temperature parameter to avoid API errors
-                response = self.client.complete(
+                response = self.client.chat.completions.create(
+                    model=current_model,
                     messages=[
-                        SystemMessage(system_prompt),
-                        UserMessage(user_message)
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_message}
                     ],
-                    model=current_model
+                    temperature=temperature
                 )
                 logging.info(f"✓ AI response received ({current_model})")
                 return response.choices[0].message.content
@@ -300,22 +297,12 @@ class PortfolioAutomation:
                 last_error = e
                 error_msg = str(e)
                 
-                # Check for token limit error - try fallback immediately
-                if 'tokens_limit_reached' in error_msg and current_model != 'openai/gpt-4o':
-                    logging.warning(f"✗ {current_model} token limit exceeded, falling back to gpt-4o...")
-                    try:
-                        response = self.client.complete(
-                            messages=[
-                                SystemMessage(system_prompt),
-                                UserMessage(user_message)
-                            ],
-                            model='openai/gpt-4o'
-                        )
-                        logging.info(f"✓ AI response received (openai/gpt-4o fallback)")
-                        return response.choices[0].message.content
-                    except Exception as fallback_error:
-                        logging.error(f"✗ Fallback to gpt-4o also failed: {fallback_error}")
-                        raise fallback_error
+                # Check for rate limit (429) - respect Retry-After header
+                if 'rate' in error_msg.lower() or '429' in error_msg:
+                    retry_after = 60  # Default wait time
+                    logging.warning(f"✗ Rate limit reached. Waiting {retry_after}s...")
+                    time.sleep(retry_after)
+                    continue
                 
                 # Check for transient network errors - retry
                 is_transient = any(keyword in error_msg.lower() for keyword in [
@@ -330,22 +317,6 @@ class PortfolioAutomation:
                     logging.info(f"Retrying in {wait_time} seconds...")
                     time.sleep(wait_time)
                     continue
-                elif is_transient and attempt == max_retries - 1 and current_model == 'openai/gpt-5':
-                    # Last attempt with connection errors on gpt-5, try gpt-4o as final fallback
-                    logging.warning(f"✗ Persistent connection errors with {current_model}, trying openai/gpt-4o...")
-                    try:
-                        response = self.client.complete(
-                            messages=[
-                                SystemMessage(system_prompt),
-                                UserMessage(user_message)
-                            ],
-                            model='openai/gpt-4o'
-                        )
-                        logging.info(f"✓ AI response received (openai/gpt-4o after connection errors)")
-                        return response.choices[0].message.content
-                    except Exception as gpt4o_error:
-                        logging.error(f"✗ gpt-4o also failed: {gpt4o_error}")
-                        # Fall through to raise with diagnostics
                 
                 # Final failure - provide diagnostics and raise
                 if attempt == max_retries - 1:
@@ -1969,9 +1940,9 @@ def main():
     parser.add_argument('--week', type=str, default='auto', 
                        help='Week number (default: auto-detect next week)')
     parser.add_argument('--github-token', type=str, 
-                       help='GitHub Personal Access Token (default: read from GH_TOKEN env var)')
-    parser.add_argument('--model', type=str, default='openai/gpt-5',
-                       help='AI model to use (default: openai/gpt-5 via GitHub Models)')
+                       help='[DEPRECATED] Not used with Azure OpenAI')
+    parser.add_argument('--model', type=str, default='gpt-4.1',
+                       help='Azure OpenAI deployment name (default: gpt-4.1)')
     parser.add_argument('--data-source', type=str, choices=['ai', 'alphavantage'], default='ai',
                        help='Data source: ai (Prompt A via AI) or alphavantage (Alpha Vantage API)')
     parser.add_argument('--alphavantage-key', type=str,
