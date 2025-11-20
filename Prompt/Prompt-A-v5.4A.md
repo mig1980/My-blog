@@ -48,8 +48,8 @@ When `master.json` is loaded successfully, you:
    - The new evaluation date
    - The previous evaluation date (1 week earlier, using prior portfolio_history)
 3. For benchmarks:
-   - SPX (S&P 500) closes (use MCP symbol or `SPX` as configured)
-   - BTC-USD closes
+   - **SPX** (S&P 500 Index): Use symbol `SPX` to retrieve S&P 500 index prices
+   - **BTC-USD** closes for Bitcoin
 
 ### Data Source Priority
 
@@ -152,7 +152,9 @@ Use the inception reference values embedded in `master.json`:
 - `spx_inception_level` (default 6688)
 - `btc_inception_price` (default 123353)
 
-For the latest S&P 500 (SPX) close and previous close:
+**IMPORTANT**: Retrieve S&P 500 prices using symbol **`SPX`** (S&P 500 Index), NOT `SPY` (ETF).
+
+For the latest SPX close and previous close:
 
 - `spx_weekly_pct = ((spx_current - spx_previous) / spx_previous) × 100`
 - `spx_total_pct = ((spx_current - spx_inception_level) / spx_inception_level) × 100`

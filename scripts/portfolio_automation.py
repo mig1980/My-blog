@@ -791,9 +791,9 @@ Generate the updated master.json for Week {self.week_number}.
         
         for bench_key in bench_config.keys():
             # Derive symbol and type from benchmark key or use defaults
-            # Expected: sp500 -> ^GSPC (S&P 500 Index), bitcoin -> BTC (crypto)
+            # Expected: sp500 -> SPX (S&P 500 Index), bitcoin -> BTC (crypto)
             if bench_key == 'sp500':
-                symbol = '^GSPC'  # S&P 500 Index (not SPY ETF)
+                symbol = 'SPX'  # S&P 500 Index (not SPY ETF)
                 bench_type = 'index'
             elif bench_key == 'bitcoin':
                 symbol = 'BTC'
