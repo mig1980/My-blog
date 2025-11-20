@@ -270,21 +270,25 @@ class PortfolioAutomation:
                          f"Failed to load master.json: {str(e)}")
             raise
     
-    def call_ai(self, system_prompt, user_message, temperature=0.7):
-        """Call GitHub Models AI API with automatic fallback to gpt-4o on token limit"""
+    def call_ai(self, system_prompt, user_message, temperature=1.0):
+        """Call GitHub Models AI API with automatic fallback to gpt-4o on token limit
+        
+        Note: GitHub Models only supports temperature=1.0 (default). Custom values are ignored.
+        """
         if not self.client:
             raise ValueError("AI client not initialized. Set GH_TOKEN environment variable.")
         
         current_model = self.model
         
+        # GitHub Models only supports default temperature (1.0)
+        # Don't pass temperature parameter to avoid API errors
         try:
             response = self.client.complete(
                 messages=[
                     SystemMessage(system_prompt),
                     UserMessage(user_message)
                 ],
-                model=current_model,
-                temperature=temperature
+                model=current_model
             )
             logging.info(f"✓ AI response received ({current_model})")
             return response.choices[0].message.content
@@ -300,8 +304,7 @@ class PortfolioAutomation:
                             SystemMessage(system_prompt),
                             UserMessage(user_message)
                         ],
-                        model='openai/gpt-4o',
-                        temperature=temperature
+                        model='openai/gpt-4o'
                     )
                     logging.info(f"✓ AI response received (openai/gpt-4o fallback)")
                     return response.choices[0].message.content
@@ -1554,7 +1557,7 @@ Here are the components:
 Generate the complete HTML file for Week {self.week_number}.
 """
         
-        response = self.call_ai(system_prompt, user_message, temperature=0.2)
+        response = self.call_ai(system_prompt, user_message)
         
         # Extract final HTML
         html_match = re.search(r'<!DOCTYPE html>.*</html>', response, re.DOTALL | re.IGNORECASE)
