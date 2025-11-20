@@ -56,6 +56,7 @@ class PortfolioAutomation:
                  data_source="ai", alphavantage_key=None, marketstack_key=None, 
                  finnhub_key=None, eval_date=None, palette="default"):
         # Configuration
+        self.existing_weeks = None  # Initialize before detect_next_week() call
         self.week_number = week_number or self.detect_next_week()
         self.model = model
         self.data_source = data_source.lower()
