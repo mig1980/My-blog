@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Content Tools - Quantum Investor Digest</title>
+    <meta name="description" content="Professional content creation tools for Quantum Investor Digest - Generate hero images and social media cards.">
+    <meta name="author" content="Michael Gavrilov">
+    <meta name="theme-color" content="#000000">
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta http-equiv="X-Frame-Options" content="SAMEORIGIN">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'nonce-qi123' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-src 'none'; base-uri 'self'; form-action 'self';">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="canonical" href="https://quantuminvestor.net/tools.html">
+    <link rel="icon" href="Media/favicon.ico" type="image/x-icon">
+    <link rel="stylesheet" href="styles.css">
+    <script src="js/template-loader.js" defer nonce="qi123"></script>
+    <script src="js/mobile-menu.js" defer nonce="qi123"></script>
+    <script src="js/password-gate.js" nonce="qi123"></script>
+    <style>
+        .tools-hero {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 80px 20px;
+            margin-bottom: 60px;
+            border-radius: 16px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .tools-hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+            opacity: 0.3;
+        }
+
+        .tools-hero-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .tools-hero h1 {
+            font-size: 3.5em;
+            font-weight: 800;
+            margin-bottom: 20px;
+            color: white;
+            text-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+
+        .tools-hero p {
+            font-size: 1.3em;
+            color: rgba(255,255,255,0.9);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .tools-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px 80px;
+        }
+
+        .tool-card {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+            border: 2px solid rgba(102, 126, 234, 0.3);
+            border-radius: 20px;
+            padding: 40px;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .tool-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(102, 126, 234, 0.15) 0%, transparent 70%);
+            transition: transform 0.6s ease;
+            transform: scale(0);
+        }
+
+        .tool-card:hover::before {
+            transform: scale(1);
+        }
+
+        .tool-card:hover {
+            transform: translateY(-8px);
+            border-color: rgba(102, 126, 234, 0.6);
+            box-shadow: 0 20px 60px rgba(102, 126, 234, 0.3);
+        }
+
+        .tool-icon {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5em;
+            margin-bottom: 25px;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+            position: relative;
+            z-index: 1;
+        }
+
+        .tool-card h2 {
+            font-size: 2em;
+            margin-bottom: 15px;
+            color: #fff;
+            position: relative;
+            z-index: 1;
+        }
+
+        .tool-card p {
+            color: rgba(255, 255, 255, 0.7);
+            line-height: 1.7;
+            margin-bottom: 30px;
+            font-size: 1.05em;
+            position: relative;
+            z-index: 1;
+        }
+
+        .tool-features {
+            list-style: none;
+            padding: 0;
+            margin: 0 0 30px 0;
+            position: relative;
+            z-index: 1;
+        }
+
+        .tool-features li {
+            padding: 10px 0 10px 30px;
+            color: rgba(255, 255, 255, 0.8);
+            position: relative;
+            font-size: 0.95em;
+        }
+
+        .tool-features li::before {
+            content: '✓';
+            position: absolute;
+            left: 0;
+            color: #4ade80;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+
+        .tool-button {
+            display: inline-block;
+            padding: 15px 35px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 1.05em;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            position: relative;
+            z-index: 1;
+        }
+
+        .tool-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(102, 126, 234, 0.6);
+        }
+
+        .security-badge {
+            text-align: center;
+            margin-top: 60px;
+            padding: 30px;
+            background: rgba(102, 126, 234, 0.05);
+            border-radius: 12px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .security-badge-icon {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .security-badge p {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.9em;
+        }
+
+        @media (max-width: 768px) {
+            .tools-hero h1 {
+                font-size: 2.5em;
+            }
+            
+            .tools-grid {
+                grid-template-columns: 1fr;
+                padding: 0 15px 40px;
+            }
+            
+            .tool-card {
+                padding: 30px;
+            }
+        }
+    </style>
+</head>
+<body data-theme="default">
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    
+    <!-- Header -->
+    <div data-template="header" data-root-path=""></div>
+
+    <main id="main-content" class="container mx-auto px-4 py-12" role="main">
+        <!-- Hero Section -->
+        <div class="tools-hero">
+            <div class="tools-hero-content">
+                <h1>🛠️ Content Creation Tools</h1>
+                <p>Professional tools for generating hero images and social media cards</p>
+            </div>
+        </div>
+
+        <!-- Tools Grid -->
+        <div class="tools-grid">
+            <!-- Pixabay Hero Image Fetcher -->
+            <article class="tool-card">
+                <div class="tool-icon">🖼️</div>
+                <h2>Hero Image Fetcher</h2>
+                <p>Search and download high-quality hero images from Pixabay for your blog posts. Customize dimensions, apply filters, and get professional visuals instantly.</p>
+                
+                <ul class="tool-features">
+                    <li>Search 2M+ high-quality images</li>
+                    <li>Custom dimensions (default 1200×800)</li>
+                    <li>Category & color filters</li>
+                    <li>Multiple format support (WebP, JPG, PNG)</li>
+                    <li>Browser-based resizing & cropping</li>
+                    <li>No backend required</li>
+                </ul>
+                
+                <a href="pixabay-fetcher.html" class="tool-button">Launch Hero Image Fetcher →</a>
+            </article>
+
+            <!-- Social Card Generator -->
+            <article class="tool-card">
+                <div class="tool-icon">📱</div>
+                <h2>Social Card Generator</h2>
+                <p>Create stunning social media preview cards (Open Graph/Twitter Cards) for your blog posts. Perfect for sharing on social platforms.</p>
+                
+                <ul class="tool-features">
+                    <li>Generate OG & Twitter Cards</li>
+                    <li>Custom text & styling</li>
+                    <li>Optimized dimensions (1200×630)</li>
+                    <li>Brand-consistent design</li>
+                    <li>Instant preview & download</li>
+                    <li>Multiple export formats</li>
+                </ul>
+                
+                <a href="Posts/social-card-generator.html" class="tool-button">Launch Social Card Generator →</a>
+            </article>
+        </div>
+
+        <!-- Security Notice -->
+        <div class="security-badge">
+            <div class="security-badge-icon">🔒</div>
+            <p>These tools are password-protected and for authorized use only.<br>All processing happens in your browser for maximum privacy.</p>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <div data-template="footer" data-root-path=""></div>
+</body>
+</html>
