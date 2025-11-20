@@ -16,8 +16,6 @@ import time
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-from PIL import Image, ImageDraw, ImageFont, ImageFilter
-import io
 import logging
 
 # Configure logging
@@ -424,9 +422,38 @@ Generate the updated master.json for Week {self.week_number}.
             raise
     
     def _generate_media_assets(self):
-        """Generate hero image with error handling."""
+        """Generate hero image using hero_image_generator.py script."""
         try:
-            self.generate_hero_image()
+            # Use standalone hero_image_generator.py for consistency
+            master_path = MASTER_DATA_DIR / "master.json"
+            out_path = REPO_ROOT / 'Media' / f"W{self.week_number}.webp"
+            
+            # Build command to call hero_image_generator.py
+            cmd = [
+                'python',
+                str(REPO_ROOT / 'scripts' / 'hero_image_generator.py'),
+                '--week', str(self.week_number),
+                '--master', str(master_path),
+                '--out', str(out_path),
+                '--query', 'futuristic finance data'
+            ]
+            
+            import subprocess
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            
+            if result.returncode == 0:
+                logging.info(f"Hero image generated: {out_path}")
+                self.add_step("Generate Hero Image", "success", 
+                             f"Generated hero image using hero_image_generator.py",
+                             {'output_file': str(out_path), 'stdout': result.stdout.strip()})
+            else:
+                logging.error(f"Hero image generation failed: {result.stderr}")
+                self.add_step("Generate Hero Image", "error", 
+                             f"hero_image_generator.py failed: {result.stderr}")
+        except subprocess.TimeoutExpired:
+            logging.error("Hero image generation timed out after 60 seconds")
+            self.add_step("Generate Hero Image", "error", 
+                         "Hero image generation timed out")
         except Exception as e:
             logging.error(f"Hero image generation failed: {e}")
             self.add_step("Generate Hero Image", "error", 
@@ -764,10 +791,10 @@ Generate the updated master.json for Week {self.week_number}.
         
         for bench_key in bench_config.keys():
             # Derive symbol and type from benchmark key or use defaults
-            # Expected: sp500 -> SPY (stock), bitcoin -> BTC (crypto)
+            # Expected: sp500 -> ^GSPC (S&P 500 Index), bitcoin -> BTC (crypto)
             if bench_key == 'sp500':
-                symbol = 'SPY'
-                bench_type = 'stock'
+                symbol = '^GSPC'  # S&P 500 Index (not SPY ETF)
+                bench_type = 'index'
             elif bench_key == 'bitcoin':
                 symbol = 'BTC'
                 bench_type = 'crypto'
@@ -788,7 +815,7 @@ Generate the updated master.json for Week {self.week_number}.
                 if not quote:
                     raise ValueError(f"Failed to fetch {bench_key.upper()} ({symbol}) crypto price from Alpha Vantage/Finnhub.")
             else:
-                # Use regular stock quote with fallback
+                # Use regular stock/index quote with fallback
                 quote = self._fetch_alphavantage_quote(symbol)
                 if not quote and self.finnhub_key:
                     logging.info(f"Trying Finnhub for benchmark {bench_key.upper()}...")
@@ -933,167 +960,6 @@ Generate the updated master.json for Week {self.week_number}.
         # Generate media assets
         self._generate_media_assets()
         return updated_master
-
-    # ===================== HERO IMAGE GENERATION (Remote + Overlay) =====================
-    def _font(self, size: int):
-        candidates = [
-            Path("C:/Windows/Fonts/SegoeUI-Semibold.ttf"),
-            Path("C:/Windows/Fonts/SegoeUI.ttf"),
-            Path("C:/Windows/Fonts/Arial.ttf"),
-            Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")
-        ]
-        face = next((str(c) for c in candidates if c.exists()), "Arial")
-        try:
-            return ImageFont.truetype(face, size=size)
-        except Exception:
-            return ImageFont.load_default()
-
-    # ===================== HERO IMAGE GENERATION (Remote + Overlay) =====================
-    def generate_hero_image(self, query: str = "futuristic finance data"):
-        """Create 1200x800 WEBP hero image using remote provider or fallback gradient."""
-        if not self.master_json:
-            raise ValueError("master_json not loaded")
-        width, height = 1200, 800
-        padding = 64
-        # --- Metrics extraction ---
-        ph = self.master_json.get('portfolio_history', [])
-        spx = self.master_json.get('benchmarks', {}).get('sp500', {}).get('history', [])
-        if ph and spx:
-            lp = ph[-1]; ls = spx[-1]
-            week_str = f"{lp.get('weekly_pct'):.2f}%" if lp.get('weekly_pct') is not None else "--"
-            total_str = f"{lp.get('total_pct'):.2f}%" if lp.get('total_pct') is not None else "--"
-            alpha_str = "--"
-            if lp.get('total_pct') is not None and ls.get('total_pct') is not None:
-                alpha_val = lp['total_pct'] - ls['total_pct']
-                alpha_str = f"{alpha_val:.2f}%"
-        else:
-            week_str = total_str = alpha_str = "--"
-        inception = self.master_json.get('meta', {}).get('inception_date')
-        current_date = self.master_json.get('meta', {}).get('current_date')
-        date_range = f"{inception} → {current_date}" if inception and current_date else ""
-
-        # --- Providers ---
-        def fetch_pexels(q: str):
-            key = os.getenv('PEXELS_API_KEY');
-            if not key: return None
-            try:
-                resp = self.session.get('https://api.pexels.com/v1/search', headers={'Authorization': key}, params={'query': q, 'orientation': 'landscape', 'per_page': 3}, timeout=10)
-                if resp.status_code != 200: return None
-                data = resp.json().get('photos', [])
-                for p in data:
-                    src = p.get('src', {}).get('large') or p.get('src', {}).get('original')
-                    if src:
-                        img_resp = self.session.get(src, timeout=15)
-                        if img_resp.status_code == 200:
-                            return Image.open(io.BytesIO(img_resp.content)).convert('RGBA')
-            except Exception:
-                return None
-            return None
-        def fetch_pixabay(q: str):
-            key = os.getenv('PIXABAY_API_KEY');
-            if not key: return None
-            try:
-                resp = self.session.get('https://pixabay.com/api/', params={'key': key, 'q': q, 'image_type': 'photo', 'orientation': 'horizontal', 'per_page': 3, 'safesearch': 'true'}, timeout=10)
-                if resp.status_code != 200: return None
-                hits = resp.json().get('hits', [])
-                for h in hits:
-                    src = h.get('largeImageURL') or h.get('webformatURL')
-                    if src:
-                        img_resp = self.session.get(src, timeout=15)
-                        if img_resp.status_code == 200:
-                            return Image.open(io.BytesIO(img_resp.content)).convert('RGBA')
-            except Exception:
-                return None
-            return None
-        def fetch_lummi(q: str):
-            # Placeholder for future API
-            return None
-
-        providers = [
-            ('Pexels', fetch_pexels),
-            ('Pixabay', fetch_pixabay),
-            ('Lummi', fetch_lummi)
-        ]
-        remote = None
-        image_source = None
-        for source_name, provider in providers:
-            remote = provider(query)
-            if remote:
-                image_source = source_name
-                logging.info(f"Using image from {source_name}")
-                break
-
-        # --- Fallback gradient ---
-        if remote:
-            r_ratio = remote.width / remote.height
-            target_ratio = width / height
-            if r_ratio > target_ratio:
-                new_h = height
-                new_w = int(r_ratio * new_h)
-            else:
-                new_w = width
-                new_h = int(new_w / r_ratio)
-            resized = remote.resize((new_w, new_h), Image.Resampling.LANCZOS)
-            left = (new_w - width)//2; top = (new_h - height)//2
-            img = resized.crop((left, top, left+width, top+height)).convert('RGBA')
-            # Darken top region for text legibility
-            mask = Image.new('L', (width, height), 0)
-            dmask = ImageDraw.Draw(mask)
-            dmask.rectangle([0,0,width,int(height*0.55)], fill=150)
-            shadow = Image.new('RGBA', (width, height), (0,0,0,160)); shadow.putalpha(mask)
-            img = Image.alpha_composite(img, shadow)
-            source_note = image_source or 'remote'
-        else:
-            base = Image.new('RGBA', (width, height), (10,10,10,255))
-            grad = Image.new('L', (width, height))
-            cx, cy = width*0.5, height*0.4
-            maxd = (width**2 + height**2)**0.5
-            pix = grad.load()
-            for y in range(height):
-                for x in range(width):
-                    d = ((x-cx)**2 + (y-cy)**2)**0.5
-                    v = max(0, 255 - int((d/maxd)*255))
-                    pix[x,y] = v
-            grad = grad.filter(ImageFilter.GaussianBlur(200))
-            overlay = Image.new('RGBA', (width, height), (72,0,120,255)); overlay.putalpha(grad)
-            img = Image.alpha_composite(base, overlay)
-            source_note = 'fallback-gradient'
-
-        # --- Overlay text ---
-        draw = ImageDraw.Draw(img)
-        badge_text = f"Week {self.week_number}"; badge_font = self._font(40)
-        b_w, b_h = draw.textbbox((0,0), badge_text, font=badge_font)[2:]
-        bx_pad, by_pad = 30, 16
-        draw.rounded_rectangle([padding, padding, padding+b_w+bx_pad*2, padding+b_h+by_pad*2], radius=60, fill=(30,27,75,230))
-        draw.text((padding+bx_pad, padding+by_pad), badge_text, font=badge_font, fill=(235,235,255,255))
-        title_font = self._font(78)
-        title_text = "AI Portfolio Weekly Performance"
-        draw.text((padding, padding+b_h+by_pad*2+42), title_text, font=title_font, fill=(255,255,255,240))
-        base_y = padding+b_h+by_pad*2+42 + 120
-        label_font = self._font(16); metric_font = self._font(36)
-        def metric(x,label,val,color=(255,255,255,235)):
-            draw.text((x, base_y), label.upper(), font=label_font, fill=(180,180,200,200))
-            draw.text((x, base_y+26), val, font=metric_font, fill=color)
-        alpha_color = (74,222,128,255) if (not alpha_str.startswith('-') and alpha_str != '--') else (248,113,113,255)
-        metric(padding, 'Week Change', week_str)
-        metric(padding+400, 'Since Inception', total_str)
-        metric(padding+800, 'Alpha vs SPX', alpha_str, alpha_color)
-        footer_font = self._font(26)
-        if date_range:
-            draw.text((padding, height-padding-44), date_range, font=footer_font, fill=(200,200,205,240))
-        draw.text((width-padding-360, height-padding-44), 'quantuminvestor.net', font=footer_font, fill=(200,200,215,240))
-        try:
-            out_path = REPO_ROOT / 'Media' / f"W{self.week_number}.webp"
-            out_path.parent.mkdir(exist_ok=True)
-            img.convert('RGB').save(out_path, format='WEBP', quality=90)
-            logging.info(f"Hero image generated: {out_path} ({source_note})")
-            self.add_step("Generate Hero Image", "success", 
-                         f"Created 1200x800 hero image ({source_note})",
-                         {'output_file': str(out_path), 'image_source': source_note})
-        except Exception as e:
-            self.add_step("Generate Hero Image", "error", 
-                         f"Failed to save hero image: {str(e)}")
-            raise
     
     def _extract_narrative_summary(self):
         """Extract only essential data for Prompt B to reduce token usage"""
@@ -1250,33 +1116,39 @@ This is for Week {self.week_number}.
     def generate_fallback_seo(self):
         """Generate fallback SEO metadata if extraction fails"""
         current_date = self.master_json['meta']['current_date']
+        # Always use the generated hero image (W{n}.webp) for Open Graph and Twitter Cards
+        hero_image_url = f"https://quantuminvestor.net/Media/W{self.week_number}.webp"
         return {
             "title": f"GenAi-Managed Stocks Portfolio Week {self.week_number} – Performance, Risks & Next Moves - Quantum Investor Digest",
             "description": f"Week {self.week_number} performance update for the AI-managed stock portfolio. Review returns vs S&P 500 and Bitcoin, top movers, and next week's outlook.",
             "canonicalUrl": f"https://quantuminvestor.net/Posts/GenAi-Managed-Stocks-Portfolio-Week-{self.week_number}.html",
             "ogTitle": f"GenAi-Managed Stocks Portfolio Week {self.week_number}",
             "ogDescription": f"Week {self.week_number} AI portfolio performance analysis",
-            "ogImage": f"https://quantuminvestor.net/Media/W{self.week_number}.webp",
+            "ogImage": hero_image_url,
             "ogUrl": f"https://quantuminvestor.net/Posts/GenAi-Managed-Stocks-Portfolio-Week-{self.week_number}.html",
             "twitterTitle": f"GenAi Portfolio Week {self.week_number}",
             "twitterDescription": f"AI-managed portfolio weekly update",
-            "twitterImage": f"https://quantuminvestor.net/Media/W{self.week_number}.webp",
+            "twitterImage": hero_image_url,
             "twitterCard": "summary_large_image"
         }
 
     def _apply_standard_head(self, html: str) -> str:
         """Apply hardened CSP + nonce, stylesheet link, external scripts, JSON-LD."""
         seo = self.seo_json or self.generate_fallback_seo()
+        
+        # ALWAYS use the generated hero image for Open Graph and Twitter Card meta tags (override AI-generated URLs)
+        hero_image_url = f"https://quantuminvestor.net/Media/W{self.week_number}.webp"
+        
         canonical = seo.get('canonicalUrl')
         title = seo.get('title')
         meta_desc = seo.get('description')
         og_title = seo.get('ogTitle') or title
         og_desc = seo.get('ogDescription') or meta_desc
-        og_image = seo.get('ogImage') or f"https://quantuminvestor.net/Media/W{self.week_number}.webp"
+        og_image = hero_image_url  # Force hero image, ignore SEO JSON
         og_url = seo.get('ogUrl') or canonical
         twitter_title = seo.get('twitterTitle') or og_title
         twitter_desc = seo.get('twitterDescription') or og_desc
-        twitter_image = seo.get('twitterImage') or og_image
+        twitter_image = hero_image_url  # Force hero image, ignore SEO JSON
         twitter_card = seo.get('twitterCard') or 'summary_large_image'
         published_iso = self.master_json.get('meta', {}).get('current_date', datetime.utcnow().date().isoformat()) + 'T00:00:00Z'
         modified_iso = published_iso
