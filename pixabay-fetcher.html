@@ -97,7 +97,7 @@
         }
 
         .pixabay-checklist li::before {
-            content: '✓';
+            content: '+';
             color: var(--primary);
             font-weight: 700;
         }
@@ -273,7 +273,7 @@
         }
 
         .pixabay-tip-list li::before {
-            content: '—';
+            content: '>';
             color: var(--primary);
         }
 
@@ -422,21 +422,21 @@
                 </ul>
                 <div class="pixabay-actions">
                     <button id="apiKeyButton" class="api-key-btn">🔑 Set API Key</button>
-                    <a class="text-sm text-gray-400 hover:text-white transition-colors" href="https://pixabay.com/api/docs/" target="_blank" rel="noopener">Pixabay API guide →</a>
+                    <a class="text-sm text-gray-400 hover:text-white transition-colors" href="https://pixabay.com/api/docs/" target="_blank" rel="noopener">Pixabay API guide -></a>
                 </div>
             </div>
             <div class="pixabay-meta">
                 <div class="pixabay-meta-card">
                     <div class="pixabay-meta-label">Default Output</div>
-                    <div class="pixabay-meta-value">1200 × 800</div>
+                    <div class="pixabay-meta-value">1200 x 800</div>
                 </div>
                 <div class="pixabay-meta-card">
                     <div class="pixabay-meta-label">Formats</div>
-                    <div class="pixabay-meta-value">WebP · JPG · PNG</div>
+                    <div class="pixabay-meta-value">WebP | JPG | PNG</div>
                 </div>
                 <div class="pixabay-meta-card">
                     <div class="pixabay-meta-label">Batch Size</div>
-                    <div class="pixabay-meta-value">5 – 20 images</div>
+                    <div class="pixabay-meta-value">5-20 images</div>
                 </div>
                 <div class="pixabay-meta-card">
                     <div class="pixabay-meta-label">Workflow</div>
@@ -542,17 +542,17 @@
                 <section class="pixabay-panel">
                     <h2 class="text-lg font-semibold">Search Tips</h2>
                     <ul class="pixabay-tip-list">
-                        <li>Pair a concept with a mood: “finance ai neon”, “stocks volatility calm”.</li>
+                        <li>Pair a concept with a mood: "finance ai neon", "stocks volatility calm".</li>
                         <li>Use the color filter to align with the homepage gradient palette.</li>
-                        <li>Include action verbs like “surge”, “glow”, or “connected” for motion.</li>
-                        <li>Keep people-focused searches to the “people” category for portraits.</li>
+                        <li>Include action verbs like "surge", "glow", or "connected" for motion.</li>
+                        <li>Keep people-focused searches to the "people" category for portraits.</li>
                     </ul>
                 </section>
 
                 <section class="pixabay-panel">
                     <h2 class="text-lg font-semibold">Workflow Notes</h2>
                     <ul class="pixabay-tip-list">
-                        <li>Downloads save locally—drag favorites into <code>Media/PostImages</code>.</li>
+                        <li>Downloads save locally - drag favorites into <code>Media/PostImages</code>.</li>
                         <li>Resizing uses smart-fit to keep focal points centered on the canvas.</li>
                         <li>Switch to JPG for newsletters and PNG for overlays or comps.</li>
                         <li>API key stays in localStorage and never leaves your browser.</li>
@@ -776,7 +776,7 @@
             info.className = 'image-info';
             info.innerHTML = `
                 <div class="image-meta">
-                    <strong>${img.imageWidth} × ${img.imageHeight}</strong><br>
+                    <strong>${img.imageWidth} x ${img.imageHeight}</strong><br>
                     👍 ${img.likes} | 👁️ ${img.views}<br>
                     By: ${img.user}
                 </div>
