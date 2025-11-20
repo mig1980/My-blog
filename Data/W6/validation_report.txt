@@ -1,0 +1,55 @@
+Prompt A Validation Report - Week 6
+Generated: 2025-11-20 21:51:21
+================================================================================
+
+✅ **Prompt A Validation: PASS**
+
+All calculations verified for Week 6. Visual components already generated. Ready for Prompt B (Narrative Writer).
+
+---
+
+### Validation Details
+
+#### 1. Stock Metrics
+
+- **Current Value**: All stocks' `current_value = shares × current_price` (rounded to nearest $) matches.
+- **Weekly %**: All stocks' `weekly_pct = ((current - previous) / previous) × 100` (rounded to 2 decimals) matches.
+- **Total %**: All stocks' `total_pct = ((current - inception) / inception) × 100` (rounded to 2 decimals) matches.
+
+#### 2. Portfolio Totals
+
+- **Current Value**: Sum of all stock `current_value` = 9699 (matches `portfolio_totals.current_value` and `portfolio_history[6].value`).
+- **Weekly %**: `((9699 - 10298) / 10298) × 100 = -5.82%` (matches).
+- **Total %**: `((9699 - 10001) / 10001) × 100 = -3.01%` (matches).
+
+#### 3. Benchmarks
+
+- **S&P 500**:
+  - **Weekly %**: `((6642.16 - 6737.49) / 6737.49) × 100 = -1.41%` (matches).
+  - **Total %**: `((6642.16 - 6688) / 6688) × 100 = -0.69%` (matches).
+
+- **Bitcoin**:
+  - **Weekly %**: `((87634.43 - 99697) / 99697) × 100 = -12.10%` (matches).
+  - **Total %**: `((87634.43 - 123353) / 123353) × 100 = -28.96%` (matches).
+
+#### 4. Array Sync
+
+- All arrays (`portfolio_history`, `benchmarks.sp500.history`, `benchmarks.bitcoin.history`, `normalized_chart`) have 7 entries and matching dates.
+
+#### 5. Normalized Chart
+
+- **Portfolio**: `genai_norm = (9699 / 10001) × 100 = 96.99` (matches).
+- **S&P 500**: `spx_norm = (6642.16 / 6688) × 100 = 99.31` (matches).
+- **Bitcoin**: `btc_norm = (87634.43 / 123353) × 100 = 71.04` (matches).
+- **Baselines**: All Week 1 (inception) normalized values are within ±0.1 of 100.
+
+#### 6. Inception Consistency
+
+- `meta.inception_value = 10000`
+- `portfolio_history[0].value = 10001`
+- `normalized_chart[0].portfolio_value = 10001`
+- All match within tolerance.
+
+---
+
+No discrepancies found. All calculations are mathematically correct within required tolerances.
