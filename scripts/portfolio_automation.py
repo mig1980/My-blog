@@ -329,10 +329,33 @@ class PortfolioAutomation:
                     logging.info(f"Retrying in {wait_time} seconds...")
                     time.sleep(wait_time)
                     continue
+                
+                # If repeatedly failing with connection errors on gpt-5, try gpt-4o
+                if is_transient and attempt == max_retries - 1 and current_model == 'openai/gpt-5':
+                    logging.warning(f"✗ Persistent connection errors with {current_model}, trying openai/gpt-4o...")
+                    try:
+                        response = self.client.complete(
+                            messages=[
+                                SystemMessage(system_prompt),
+                                UserMessage(user_message)
+                            ],
+                            model='openai/gpt-4o'
+                        )
+                        logging.info(f"✓ AI response received (openai/gpt-4o after connection errors)")
+                        return response.choices[0].message.content
+                    except Exception as gpt4o_error:
+                        logging.error(f"✗ gpt-4o also failed: {gpt4o_error}")
+                        # Fall through to raise original error
+                        pass
                 else:
                     # Not transient or out of retries
                     if attempt == max_retries - 1:
-                        logging.error(f"✗ AI call failed after {max_retries} attempts: {e}")
+                        # Provide diagnostics on final failure
+                        msg_len = len(system_prompt) + len(user_message)
+                        logging.error(f"✗ AI call failed after {max_retries} attempts")
+                        logging.error(f"  Model: {current_model}")
+                        logging.error(f"  Message length: {msg_len:,} chars (~{msg_len//4:,} tokens)")
+                        logging.error(f"  Error: {e}")
                     else:
                         logging.error(f"✗ AI call failed: {e}")
                     raise
@@ -1185,6 +1208,9 @@ Generate the updated master.json for Week {self.week_number}.
             # Extract only essential data to stay under token limit
             narrative_data = self._extract_narrative_summary()
             
+            # Compact JSON to reduce size
+            data_json = json.dumps(narrative_data, separators=(',', ':'))
+            
             user_message = f"""
 {self.prompts['B']}
 
@@ -1193,7 +1219,7 @@ Generate the updated master.json for Week {self.week_number}.
 Here is the summary data for Week {self.week_number}:
 
 ```json
-{json.dumps(narrative_data, indent=2)}
+{data_json}
 ```
 
 Generate:
@@ -1202,6 +1228,10 @@ Generate:
 
 This is for Week {self.week_number}.
 """
+            
+            # Log request size for debugging
+            estimated_tokens = (len(system_prompt) + len(user_message)) // 4
+            logging.info(f"Estimated request size: ~{estimated_tokens} tokens")
             
             response = self.call_ai(system_prompt, user_message)
             
