@@ -1,7 +1,24 @@
 #!/usr/bin/env python3
 """
 GenAi Chosen Portfolio - Weekly Automation Script
-Runs Prompt A -> B -> C -> D sequence to generate weekly portfolio updates
+
+Workflow:
+1. Fetch prices from APIs (Alpha Vantage, Marketstack, Finnhub)
+2. Calculate all metrics (stocks, portfolio, benchmarks, normalized chart)
+3. Generate visual components (performance table and chart) using Python
+4. Optional: Validate calculations (Prompt A)
+5. Generate narrative content (Prompt B)
+6. Assemble final HTML page (Prompt D)
+
+Note: Prompt C eliminated - visual generation now handled by deterministic Python code
+
+Error Handling Strategy:
+- FATAL ERRORS (raise ValueError): Missing data, failed calculations, critical API failures
+  → These abort the entire pipeline as the script cannot proceed
+- NON-FATAL ERRORS (return dict): Optional validation (Prompt A)
+  → Returns {'status': 'pass|fail|error', 'report': str} to allow graceful degradation
+- TRANSIENT ERRORS (retry with backoff): Network timeouts, rate limits
+  → Handled in call_ai() and API fetch methods with exponential backoff
 """
 
 import os
@@ -141,6 +158,7 @@ class PortfolioAutomation:
         self.seo_json = None
         self.performance_table = None
         self.performance_chart = None
+        self.visuals_json = None
     
     def detect_next_week(self):
         """Auto-detect next week number from master data file"""
@@ -214,10 +232,11 @@ class PortfolioAutomation:
         logging.info("="*80)
     
     def load_prompts(self):
-        """Load all prompt markdown files (A, B, C, D)"""
+        """Load prompt markdown files (A, B, D - Prompt C eliminated)"""
         prompts = {}
         missing = []
-        for letter in ['A', 'B', 'C', 'D']:
+        # Prompt C eliminated - visual generation now handled by automation script
+        for letter in ['A', 'B', 'D']:
             prompt_file = PROMPT_DIR / f"Prompt-{letter}-v5.4{letter}.md"
             if prompt_file.exists():
                 with open(prompt_file, 'r', encoding='utf-8') as f:
@@ -233,7 +252,7 @@ class PortfolioAutomation:
                          {'missing_prompts': ', '.join([f"Prompt-{l}" for l in missing])})
         else:
             self.add_step("Load Prompts", "success", 
-                         "All 4 prompt files loaded successfully")
+                         "All 3 prompt files loaded successfully (A, B, D)")
         
         return prompts
     
@@ -335,91 +354,79 @@ class PortfolioAutomation:
         logging.warning("CSS minification not implemented (using original styles.css)")
         pass
     
-    def run_prompt_a(self):
-        """Prompt A: Data Engine - Update master.json with new week's data"""
-        logging.info("Running Prompt A: Data Engine...")
+    def run_prompt_a_validator(self):
+        """Prompt A: Data Validator - Validate calculations already performed by automation.
+        
+        This is optional QA step. The automation script has already:
+        - Fetched prices and added to master.json
+        - Calculated all metrics (stocks, portfolio, benchmarks, normalized chart)
+        - Saved updated master.json
+        
+        Prompt A validates the calculations are correct.
+        
+        Returns:
+            Dict with 'status' (pass/fail/unclear/error) and 'report' (str).
+            NOTE: Returns dict instead of raising exceptions because validation
+            is non-fatal. Calculations are already complete - this is optional QA.
+        """
+        logging.info("Running Prompt A: Data Validator...")
         
         try:
-            system_prompt = "You are the GenAi Chosen Data Engine. Follow Prompt A specifications exactly."
+            if not self.master_json:
+                raise ValueError("master.json must be loaded before running Prompt A validator")
+            
+            system_prompt = "You are the GenAi Chosen Data Validator. Follow Prompt A specifications exactly."
             
             user_message = f"""
 {self.prompts['A']}
 
 ---
 
-Here is last week's master.json:
+Here is master.json with Week {self.week_number} data and calculations complete:
 
 ```json
 {json.dumps(self.master_json, indent=2)}
 ```
 
-Generate the updated master.json for Week {self.week_number}.
+Validate all calculations are mathematically correct.
+Return a validation report (PASS or FAIL with details).
 """
             
-            response = self.call_ai(system_prompt, user_message)
+            response = self.call_ai(system_prompt, user_message, temperature=0.3)
             
-            # Extract JSON from response
-            json_match = re.search(r'```json\s*({.*?})\s*```', response, re.DOTALL)
-            if json_match:
-                self.master_json = json.loads(json_match.group(1))
+            # Check if validation passed
+            validation_passed = '✅' in response or 'PASS' in response.upper()
+            validation_failed = '❌' in response or 'FAIL' in response.upper()
+            
+            if validation_passed and not validation_failed:
+                logging.info(f"✅ Prompt A Validation: PASS - Week {self.week_number} calculations verified")
+                self.add_step("Prompt A - Data Validator", "success", 
+                             f"All Week {self.week_number} calculations validated",
+                             {'validation_report': response[:500]})
+                return {'status': 'pass', 'report': response}
+            
+            elif validation_failed:
+                logging.warning(f"❌ Prompt A Validation: FAIL - Found calculation errors in Week {self.week_number}")
+                logging.warning(f"Validation report:\n{response}")
+                self.add_step("Prompt A - Data Validator", "warning", 
+                             f"Validation found errors in Week {self.week_number} calculations",
+                             {'validation_report': response[:500]})
+                return {'status': 'fail', 'report': response}
+            
             else:
-                # Try to parse entire response as JSON
-                try:
-                    self.master_json = json.loads(response)
-                except json.JSONDecodeError:
-                    self.add_step("Prompt A - Data Engine", "error", 
-                                 "AI response did not contain valid JSON format")
-                    raise ValueError("Prompt A did not return valid JSON. Check response format.")
-            
-            # Enforce evaluation date override if set
-            if self.eval_date and self.master_json.get('meta', {}).get('current_date') != self.eval_date:
-                self.master_json['meta']['current_date'] = self.eval_date
-
-            # Save to consolidated master data (primary location) - atomic write
-            MASTER_DATA_DIR.mkdir(exist_ok=True)
-            master_path = MASTER_DATA_DIR / "master.json"
-            temp_path = master_path.with_suffix('.tmp')
-            try:
-                with open(temp_path, 'w') as f:
-                    json.dump(self.master_json, f, indent=2)
-                temp_path.replace(master_path)  # Atomic on POSIX, near-atomic on Windows
-            except Exception as e:
-                if temp_path.exists():
-                    temp_path.unlink()
-                raise
-            
-            # Archive timestamped backup
-            ARCHIVE_DIR.mkdir(exist_ok=True)
-            eval_date = self.master_json['meta']['current_date'].replace('-', '')
-            archive_path = ARCHIVE_DIR / f"master-{eval_date}.json"
-            with open(archive_path, 'w') as f:
-                json.dump(self.master_json, f, indent=2)
-            
-            # Optional: Legacy week snapshot (backward compatibility)
-            current_week_dir = DATA_DIR / f"W{self.week_number}"
-            current_week_dir.mkdir(exist_ok=True)
-            legacy_path = current_week_dir / "master.json"
-            with open(legacy_path, 'w') as f:
-                json.dump(self.master_json, f, indent=2)
-            
-            logging.info(f"Prompt A completed for Week {self.week_number}")
-            logging.info(f"  → Primary: {master_path}")
-            logging.info(f"  → Archive: {archive_path}")
-            logging.info(f"  → Legacy:  {legacy_path} (optional)")
-            
-            self.add_step("Prompt A - Data Engine", "success", 
-                         f"Updated master.json with Week {self.week_number} data",
-                         {'primary_file': str(master_path), 'archive_file': str(archive_path)})
-            
-            # Generate media assets
-            self._generate_media_assets()
-            
-            return self.master_json
+                # Ambiguous response
+                logging.warning("Prompt A validation response unclear")
+                self.add_step("Prompt A - Data Validator", "warning", 
+                             "Validation response format unclear",
+                             {'validation_report': response[:500]})
+                return {'status': 'unclear', 'report': response}
             
         except Exception as e:
-            self.add_step("Prompt A - Data Engine", "error", 
-                         f"Prompt A execution failed: {str(e)}")
-            raise
+            self.add_step("Prompt A - Data Validator", "error", 
+                         f"Prompt A validation failed: {str(e)}")
+            # Validation failure is non-fatal - calculations already done
+            logging.warning(f"Prompt A validator failed: {e}. Continuing with generated data.")
+            return {'status': 'error', 'report': str(e)}
     
     def _generate_media_assets(self):
         """Generate hero image using hero_image_generator.py script."""
@@ -680,10 +687,13 @@ Generate the updated master.json for Week {self.week_number}.
         """Generate new week's master.json using Alpha Vantage API.
         Uses previous week's master.json as baseline, fetches latest prices,
         recalculates weekly and total pct changes, benchmarks, portfolio history.
+        
+        Raises:
+            ValueError: If master.json not loaded or if duplicate date detected.
         """
-        logging.info("Running Alpha Vantage data engine (replacing Prompt A)...")
+        logging.info("Running Alpha Vantage data engine...")
         if self.master_json is None:
-            raise ValueError("Previous master.json must be loaded before fetching new data.")
+            raise ValueError("master.json must be loaded before fetching new data")
 
         prev_date = self.master_json['meta']['current_date']
         inception_date = self.master_json['meta']['inception_date']
@@ -791,9 +801,9 @@ Generate the updated master.json for Week {self.week_number}.
         
         for bench_key in bench_config.keys():
             # Derive symbol and type from benchmark key or use defaults
-            # Expected: sp500 -> SPX (S&P 500 Index), bitcoin -> BTC (crypto)
+            # Expected: sp500 -> ^SPX (S&P 500 Index), bitcoin -> BTC (crypto)
             if bench_key == 'sp500':
-                symbol = 'SPX'  # S&P 500 Index (not SPY ETF)
+                symbol = '^SPX'  # S&P 500 Index symbol for Marketstack
                 bench_type = 'index'
             elif bench_key == 'bitcoin':
                 symbol = 'BTC'
@@ -814,8 +824,16 @@ Generate the updated master.json for Week {self.week_number}.
                     quote = self._fetch_finnhub_crypto(symbol)
                 if not quote:
                     raise ValueError(f"Failed to fetch {bench_key.upper()} ({symbol}) crypto price from Alpha Vantage/Finnhub.")
+            elif bench_key == 'sp500':
+                # Use Marketstack ONLY for S&P 500 Index (^SPX)
+                if not self.marketstack_key:
+                    raise ValueError("MARKETSTACK_API_KEY required for S&P 500 Index retrieval")
+                logging.info(f"Fetching S&P 500 from Marketstack using {symbol}...")
+                quote = self._fetch_marketstack_quote(symbol)
+                if not quote:
+                    raise ValueError(f"Failed to fetch S&P 500 ({symbol}) from Marketstack. Cannot generate accurate portfolio data.")
             else:
-                # Use regular stock/index quote with fallback
+                # Other benchmarks: use regular fallback chain
                 quote = self._fetch_alphavantage_quote(symbol)
                 if not quote and self.finnhub_key:
                     logging.info(f"Trying Finnhub for benchmark {bench_key.upper()}...")
@@ -879,8 +897,8 @@ Generate the updated master.json for Week {self.week_number}.
             "genai_norm": round(100 * portfolio_current_value / inception_value, 2),
             "spx_close": spx_close,
             "btc_close": btc_close,
-            "spx_norm": round(100 * spx_close / spx_first_ref, 5),
-            "btc_norm": round(100 * btc_close / btc_first_ref, 5)
+            "spx_norm": round(100 * spx_close / spx_first_ref, 2),
+            "btc_norm": round(100 * btc_close / btc_first_ref, 2)
         }
 
         updated_master = {
@@ -948,8 +966,8 @@ Generate the updated master.json for Week {self.week_number}.
             'source': bench_sources.get('bitcoin', 'Unknown')
         }
         
-        self.add_step("Fetch Market Prices", "success",
-                     f"Fetched prices for {len(tickers)} stocks + 2 benchmarks",
+        self.add_step("Calculate Portfolio Metrics", "success",
+                     f"Fetched prices and calculated metrics for Week {self.week_number}",
                      {'prices': price_report})
         
         logging.info(f"Alpha Vantage data engine completed for Week {self.week_number}")
@@ -1310,80 +1328,27 @@ This is for Week {self.week_number}.
             'week_number': self.week_number
         }
     
-    def run_prompt_c(self):
-        """Prompt C: Visual Generator - Create table and chart"""
-        logging.info("Running Prompt C: Visual Generator...")
+    def generate_visuals(self):
+        """Generate performance table and chart directly (no AI needed).
         
-        system_prompt = "You are the GenAi Chosen Visual Module Generator. Follow Prompt C specifications exactly."
+        Replaces Prompt C functionality with deterministic Python generation.
         
-        # Extract only visual data to stay under token limit
-        visual_data = self._extract_visual_data()
-        
-        user_message = f"""
-{self.prompts['C']}
-
----
-
-Here is the visual data for Week {self.week_number}:
-
-```json
-{json.dumps(visual_data, indent=2)}
-```
-
-Generate:
-1. performance_table.html
-2. performance_chart.svg (wrapped in container HTML)
-
-This is for Week {self.week_number}.
-"""
+        Raises:
+            ValueError: If master.json not loaded or insufficient data.
+        """
+        logging.info("Generating visual components...")
         
         try:
-            response = self.call_ai(system_prompt, user_message)
+            # Generate table and chart using Python
+            self.generate_performance_table()
+            self.generate_performance_chart()
+            self.generate_visuals_json()
             
-            table_status = "success"
-            chart_status = "success"
-            
-            # Extract table HTML (including nested divs and table)
-            table_match = re.search(r'<div class="myblock-performance-snapshot">.*?</table>\s*</div>', response, re.DOTALL)
-            if table_match:
-                self.performance_table = table_match.group(0)
-            else:
-                logging.warning("Could not extract performance table from Prompt C response")
-                self.performance_table = "<!-- Performance table not generated -->"
-                table_status = "warning"
-            
-            # Extract chart HTML (entire container including legend)
-            # Use a better pattern that captures nested divs properly
-            chart_start = response.find('<div class="myblock-chart-container">')
-            if chart_start != -1:
-                # Find matching closing div by counting nested divs
-                depth = 0
-                i = chart_start
-                while i < len(response):
-                    if response[i:i+4] == '<div':
-                        depth += 1
-                    elif response[i:i+6] == '</div>':
-                        depth -= 1
-                        if depth == 0:
-                            self.performance_chart = response[chart_start:i+6]
-                            break
-                    i += 1
-            
-            if not self.performance_chart:
-                logging.warning("Could not extract performance chart from Prompt C response")
-                self.performance_chart = "<!-- Performance chart not generated -->"
-                chart_status = "warning"
-            
-            logging.info("Prompt C completed - visuals generated")
-            
-            overall_status = "success" if table_status == "success" and chart_status == "success" else "warning"
-            self.add_step("Prompt C - Visual Generator", overall_status, 
-                         "Generated performance table and chart",
-                         {'table': table_status, 'chart': chart_status})
+            logging.info("Visual generation completed")
             
         except Exception as e:
-            self.add_step("Prompt C - Visual Generator", "error", 
-                         f"Prompt C execution failed: {str(e)}")
+            self.add_step("Generate Visuals", "error",
+                         f"Visual generation failed: {str(e)}")
             raise
     
     def run_prompt_d(self):
@@ -1560,6 +1525,342 @@ Generate the complete HTML file for Week {self.week_number}.
         # Remove any leftover <style> blocks that only define key-metric (now centralized)
         html = re.sub(r'<style>[^<]*?\.key-metric[^<]*?</style>', '', html, flags=re.DOTALL)
         return html
+    
+    def generate_performance_table(self):
+        """Generate performance_table.html from master.json data.
+        
+        Creates a snapshot table showing inception, previous week, and current week
+        values for portfolio, S&P 500, and Bitcoin.
+        """
+        logging.info("Generating performance table...")
+        
+        try:
+            if not self.master_json:
+                raise ValueError("master.json must be loaded before generating visuals")
+            
+            # Extract data from master.json
+            meta = self.master_json.get('meta', {})
+            inception_date = meta.get('inception_date', '2025-10-09')
+            current_date = meta.get('current_date', '')
+            
+            portfolio_history = self.master_json.get('portfolio_history', [])
+            sp500_history = self.master_json.get('benchmarks', {}).get('sp500', {}).get('history', [])
+            btc_history = self.master_json.get('benchmarks', {}).get('bitcoin', {}).get('history', [])
+            
+            if len(portfolio_history) < 2:
+                raise ValueError("Need at least 2 weeks of data to generate table")
+            
+            # Get inception, previous, and current entries
+            portfolio_inception = portfolio_history[0]
+            portfolio_previous = portfolio_history[-2]
+            portfolio_current = portfolio_history[-1]
+            
+            sp500_inception = sp500_history[0]
+            sp500_previous = sp500_history[-2]
+            sp500_current = sp500_history[-1]
+            
+            btc_inception = btc_history[0]
+            btc_previous = btc_history[-2]
+            btc_current = btc_history[-1]
+            
+            # Format dates
+            prev_date = portfolio_previous.get('date', '')
+            curr_date = portfolio_current.get('date', '')
+            
+            # Parse dates for display
+            from datetime import datetime
+            prev_date_obj = datetime.strptime(prev_date, '%Y-%m-%d')
+            curr_date_obj = datetime.strptime(curr_date, '%Y-%m-%d')
+            
+            prev_display = prev_date_obj.strftime('%b %-d' if prev_date_obj.day < 10 else '%b %d').replace(' 0', ' ')
+            curr_display = curr_date_obj.strftime('%b %-d' if curr_date_obj.day < 10 else '%b %d').replace(' 0', ' ')
+            year = curr_date_obj.year
+            
+            # Format values
+            def format_value(val, prefix=''):
+                return f"{prefix}{val:,}"
+            
+            def format_pct(val):
+                sign = '+' if val >= 0 else ''
+                return f"{sign}{val:.2f}%"
+            
+            def pct_class(val):
+                return 'positive' if val >= 0 else 'negative'
+            
+            # Build HTML
+            table_html = f'''<div class="myblock-performance-snapshot">
+  <table class="myblock-portfolio-table" aria-label="Portfolio performance comparison">
+    <caption>Portfolio vs Benchmarks Performance (Oct 9 – {curr_display}, {year})</caption>
+    <thead>
+      <tr>
+        <th scope="col">Asset</th>
+        <th scope="col">Oct 9, {year}</th>
+        <th scope="col">{prev_display}, {year}</th>
+        <th scope="col">{curr_display}, {year}</th>
+        <th scope="col">Weekly<br>Change</th>
+        <th scope="col">Total<br>Return</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="asset-name">GenAi Chosen ($)</td>
+        <td>{format_value(portfolio_inception['value'])}</td>
+        <td>{format_value(portfolio_previous['value'])}</td>
+        <td>{format_value(portfolio_current['value'])}</td>
+        <td class="{pct_class(portfolio_current['weekly_pct'])}">{format_pct(portfolio_current['weekly_pct'])}</td>
+        <td class="{pct_class(portfolio_current['total_pct'])}">{format_pct(portfolio_current['total_pct'])}</td>
+      </tr>
+      <tr>
+        <td class="asset-name">S&amp;P 500 (Index)</td>
+        <td>{format_value(round(sp500_inception['close']))}</td>
+        <td>{format_value(round(sp500_previous['close']))}</td>
+        <td>{format_value(round(sp500_current['close']))}</td>
+        <td class="{pct_class(sp500_current['weekly_pct'])}">{format_pct(sp500_current['weekly_pct'])}</td>
+        <td class="{pct_class(sp500_current['total_pct'])}">{format_pct(sp500_current['total_pct'])}</td>
+      </tr>
+      <tr>
+        <td class="asset-name">Bitcoin ($)</td>
+        <td>{format_value(round(btc_inception['close']))}</td>
+        <td>{format_value(round(btc_previous['close']))}</td>
+        <td>{format_value(round(btc_current['close']))}</td>
+        <td class="{pct_class(btc_current['weekly_pct'])}">{format_pct(btc_current['weekly_pct'])}</td>
+        <td class="{pct_class(btc_current['total_pct'])}">{format_pct(btc_current['total_pct'])}</td>
+      </tr>
+    </tbody>
+  </table>
+</div>'''
+            
+            self.performance_table = table_html
+            
+            # Save to file for archival/debugging
+            output_path = DATA_DIR / f"W{self.week_number}" / "performance_table.html"
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(table_html)
+            
+            logging.info(f"Performance table generated: {output_path}")
+            self.add_step("Generate Performance Table", "success",
+                         "Generated performance snapshot table",
+                         {'output_file': str(output_path)})
+            
+            return table_html
+            
+        except Exception as e:
+            self.add_step("Generate Performance Table", "error",
+                         f"Failed to generate performance table: {str(e)}")
+            raise
+    
+    def generate_performance_chart(self):
+        """Generate performance_chart.svg from master.json data.
+        
+        Creates a normalized line chart showing portfolio, S&P 500, and Bitcoin
+        performance since inception (all normalized to 100 at start).
+        """
+        logging.info("Generating performance chart...")
+        
+        try:
+            if not self.master_json:
+                raise ValueError("master.json must be loaded before generating visuals")
+            
+            # Extract normalized chart data
+            normalized_data = self.master_json.get('normalized_chart', [])
+            if len(normalized_data) < 2:
+                raise ValueError("Need at least 2 data points to generate chart")
+            
+            # SVG dimensions and padding
+            width = 900
+            height = 400
+            pad_left = 60
+            pad_right = 40
+            pad_top = 40
+            pad_bottom = 60
+            chart_width = width - pad_left - pad_right
+            chart_height = height - pad_top - pad_bottom
+            
+            # Extract values for scaling
+            all_values = []
+            for entry in normalized_data:
+                all_values.extend([
+                    entry.get('genai_norm', 100),
+                    entry.get('spx_norm', 100),
+                    entry.get('btc_norm', 100)
+                ])
+            
+            y_min = min(all_values)
+            y_max = max(all_values)
+            
+            # Add padding to y-axis range
+            y_range = y_max - y_min
+            y_min_padded = y_min - y_range * 0.1
+            y_max_padded = y_max + y_range * 0.1
+            
+            # Generate Y-axis labels (5 evenly spaced)
+            y_labels = []
+            for i in range(5):
+                val = y_min_padded + (y_max_padded - y_min_padded) * (4 - i) / 4
+                y_labels.append(round(val, 1))
+            
+            # Coordinate conversion functions
+            def x_coord(index):
+                return pad_left + (index / (len(normalized_data) - 1)) * chart_width
+            
+            def y_coord(value):
+                return pad_top + (1 - (value - y_min_padded) / (y_max_padded - y_min_padded)) * chart_height
+            
+            # Generate polyline points
+            genai_points = []
+            spx_points = []
+            btc_points = []
+            
+            for i, entry in enumerate(normalized_data):
+                x = x_coord(i)
+                genai_points.append(f"{x},{y_coord(entry.get('genai_norm', 100))}")
+                spx_points.append(f"{x},{y_coord(entry.get('spx_norm', 100))}")
+                btc_points.append(f"{x},{y_coord(entry.get('btc_norm', 100))}")
+            
+            # Generate X-axis labels (dates)
+            num_x_labels = min(len(normalized_data), 6)
+            x_label_indices = [int(i * (len(normalized_data) - 1) / (num_x_labels - 1)) for i in range(num_x_labels)]
+            
+            x_labels_html = []
+            for idx in x_label_indices:
+                entry = normalized_data[idx]
+                date_str = entry.get('date', '')
+                from datetime import datetime
+                date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+                label = date_obj.strftime('%b %-d').replace(' 0', ' ')
+                x = x_coord(idx)
+                x_labels_html.append(f'<text x="{x}" y="{height - pad_bottom + 20}" text-anchor="middle" class="myblock-chart-label">{label}</text>')
+            
+            # Generate Y-axis labels and gridlines
+            y_labels_html = []
+            gridlines_html = []
+            for i, val in enumerate(y_labels):
+                y = pad_top + (chart_height * i / 4)
+                y_labels_html.append(f'<text x="{pad_left - 10}" y="{y + 4}" text-anchor="end" class="myblock-chart-label">{val:.0f}</text>')
+                gridlines_html.append(f'<line x1="{pad_left}" y1="{y}" x2="{width - pad_right}" y2="{y}" class="myblock-chart-grid" />')
+            
+            # Generate dots
+            dots_html = []
+            for i, entry in enumerate(normalized_data):
+                x = x_coord(i)
+                dots_html.append(f'<circle cx="{x}" cy="{y_coord(entry.get("genai_norm", 100))}" class="myblock-chart-dot myblock-chart-dot-genai" />')
+                dots_html.append(f'<circle cx="{x}" cy="{y_coord(entry.get("spx_norm", 100))}" class="myblock-chart-dot myblock-chart-dot-sp500" />')
+                dots_html.append(f'<circle cx="{x}" cy="{y_coord(entry.get("btc_norm", 100))}" class="myblock-chart-dot myblock-chart-dot-bitcoin" />')
+            
+            # Get total returns for legend
+            latest = normalized_data[-1]
+            genai_return = latest.get('genai_norm', 100) - 100
+            spx_return = latest.get('spx_norm', 100) - 100
+            btc_return = latest.get('btc_norm', 100) - 100
+            
+            def format_pct(val):
+                sign = '+' if val >= 0 else ''
+                return f"{sign}{val:.2f}%"
+            
+            # Build chart HTML
+            chart_html = f'''<div class="myblock-chart-container">
+  <div class="myblock-chart-title">Performance Since Inception (Normalized to 100)</div>
+  <div class="myblock-chart-wrapper">
+    <svg class="myblock-chart-svg" viewBox="0 0 {width} {height}" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="chartTitle chartDesc">
+      <title id="chartTitle">Normalized Performance Since Inception</title>
+      <desc id="chartDesc">Line chart comparing normalized performance of the GenAi Chosen portfolio, the S&amp;P 500, and Bitcoin from October 9, 2025, with all assets normalized to 100 on the inception date and 100 shown as the central reference line.</desc>
+      
+      <!-- Grid -->
+      <g class="myblock-chart-grid-group">
+        {''.join(gridlines_html)}
+      </g>
+      
+      <!-- Axes -->
+      <line x1="{pad_left}" y1="{pad_top}" x2="{pad_left}" y2="{height - pad_bottom}" class="myblock-chart-axis" />
+      <line x1="{pad_left}" y1="{height - pad_bottom}" x2="{width - pad_right}" y2="{height - pad_bottom}" class="myblock-chart-axis" />
+      
+      <!-- Y-axis labels -->
+      <g class="myblock-chart-labels">
+        {''.join(y_labels_html)}
+      </g>
+      
+      <!-- X-axis labels -->
+      <g class="myblock-chart-labels">
+        {''.join(x_labels_html)}
+      </g>
+      
+      <!-- Lines -->
+      <polyline points="{' '.join(genai_points)}" class="myblock-chart-line-genai" />
+      <polyline points="{' '.join(spx_points)}" class="myblock-chart-line-sp500" />
+      <polyline points="{' '.join(btc_points)}" class="myblock-chart-line-bitcoin" />
+      
+      <!-- Dots -->
+      <g class="myblock-chart-dots">
+        {''.join(dots_html)}
+      </g>
+    </svg>
+  </div>
+  <div class="myblock-chart-legend">
+    <div class="myblock-chart-legend-item">
+      <div class="myblock-chart-legend-line myblock-legend-genai"></div>
+      <span><strong>GenAi Chosen</strong> ({format_pct(genai_return)})</span>
+    </div>
+    <div class="myblock-chart-legend-item">
+      <div class="myblock-chart-legend-line myblock-legend-sp500"></div>
+      <span><strong>S&amp;P 500</strong> ({format_pct(spx_return)})</span>
+    </div>
+    <div class="myblock-chart-legend-item">
+      <div class="myblock-chart-legend-line myblock-legend-bitcoin"></div>
+      <span><strong>Bitcoin</strong> ({format_pct(btc_return)})</span>
+    </div>
+  </div>
+</div>'''
+            
+            self.performance_chart = chart_html
+            
+            # Save to file for archival/debugging
+            output_path = DATA_DIR / f"W{self.week_number}" / "performance_chart.svg"
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(chart_html)
+            
+            logging.info(f"Performance chart generated: {output_path}")
+            self.add_step("Generate Performance Chart", "success",
+                         "Generated normalized performance chart",
+                         {'output_file': str(output_path)})
+            
+            return chart_html
+            
+        except Exception as e:
+            self.add_step("Generate Performance Chart", "error",
+                         f"Failed to generate performance chart: {str(e)}")
+            raise
+    
+    def generate_visuals_json(self):
+        """Generate visuals.json metadata descriptor."""
+        try:
+            meta = self.master_json.get('meta', {})
+            visuals_data = {
+                "performanceTableFile": "performance_table.html",
+                "performanceChartFile": "performance_chart.svg",
+                "dateRange": {
+                    "inception": meta.get('inception_date', '2025-10-09'),
+                    "current": meta.get('current_date', '')
+                },
+                "benchmarks": ["sp500", "bitcoin"],
+                "normalized": True
+            }
+            
+            self.visuals_json = visuals_data
+            
+            # Save to file
+            output_path = DATA_DIR / f"W{self.week_number}" / "visuals.json"
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(visuals_data, f, indent=2)
+            
+            logging.info(f"Visuals metadata generated: {output_path}")
+            return visuals_data
+            
+        except Exception as e:
+            logging.warning(f"Failed to generate visuals.json: {e}")
+            return None
     
     def update_index_pages(self):
         """Update posts.html with dynamically generated listing from Posts/ directory"""
@@ -1741,30 +2042,36 @@ Generate the complete HTML file for Week {self.week_number}.
         try:
             self.load_master_json()
             
-            # Data acquisition: AI or Alpha Vantage (MUST succeed or abort)
-            if self.data_source == 'alphavantage':
-                updated_master = self.generate_master_from_alphavantage()
-                if not updated_master:
-                    raise ValueError("Alpha Vantage data engine failed to generate updated master.json")
-            else:
-                updated_master = self.run_prompt_a()
-                if not updated_master:
-                    raise ValueError("Prompt A (AI data engine) failed to generate updated master.json")
+            # Step 1: Data acquisition and calculation (MUST succeed or abort)
+            # Always use Alpha Vantage method - it fetches prices AND calculates metrics
+            updated_master = self.generate_master_from_alphavantage()
+            if not updated_master:
+                raise ValueError("Data engine failed to generate master.json")
             
-            # Narrative generation (only proceeds if data acquisition succeeded)
+            # Step 2: Optional validation (uses AI to verify calculations)
+            # NOTE: This returns a dict (not exception) because validation is non-fatal
+            if self.ai_enabled and self.data_source != 'alphavantage':
+                # If AI enabled and NOT in pure data mode, validate calculations
+                validation_result = self.run_prompt_a_validator()
+                if validation_result['status'] == 'fail':
+                    logging.warning("Validation detected errors but continuing with generated data")
+            
+            # Step 3: Visual generation (deterministic Python, no AI needed)
+            self.generate_visuals()
+            if not self.performance_table or not self.performance_chart:
+                raise ValueError("Visual components generation failed")
+            
+            # Step 4: Narrative generation (requires AI)
             if self.ai_enabled:
                 # All-or-nothing: generate content first, write file only if successful
                 self.run_prompt_b()
                 if not self.narrative_html:
-                    raise ValueError("Prompt B failed to generate narrative HTML")
-                self.run_prompt_c()
-                if not self.performance_table or not self.performance_chart:
-                    raise ValueError("Prompt C failed to generate visuals")
+                    raise ValueError("Narrative HTML generation failed (Prompt B)")
                 self.run_prompt_d()
                 # If we reached here, all prompts succeeded and file was written
             else:
                 # No AI available - fail fast, don't create incomplete output
-                error_msg = "AI client not initialized. Cannot generate weekly post without GitHub token."
+                error_msg = "AI client not initialized - cannot generate narrative content"
                 self.add_step("Generate Weekly Post", "error", error_msg)
                 raise ValueError(error_msg)
 
@@ -1815,8 +2122,8 @@ def main():
                        help='[DEPRECATED] Not used with Azure OpenAI')
     parser.add_argument('--model', type=str, default='gpt-4.1',
                        help='Azure OpenAI deployment name (default: gpt-4.1)')
-    parser.add_argument('--data-source', type=str, choices=['ai', 'alphavantage'], default='ai',
-                       help='Data source: ai (Prompt A via AI) or alphavantage (Alpha Vantage API)')
+    parser.add_argument('--data-source', type=str, choices=['ai', 'alphavantage'], default='alphavantage',
+                       help='Data source: alphavantage (fetch+calculate, optional AI validation) or ai (fetch+calculate+validate with AI)')
     parser.add_argument('--alphavantage-key', type=str,
                        help='Alpha Vantage API key (default: read from ALPHAVANTAGE_API_KEY env var)')
     parser.add_argument('--marketstack-key', type=str,
