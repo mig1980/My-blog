@@ -1,0 +1,422 @@
+<!-- Email Subscribe Form Component -->
+<!-- 
+  This form collects email addresses and submits them to an Azure Function endpoint.
+  Replace 'YOUR_AZURE_FUNCTION_URL' with your actual Azure Function HTTP trigger URL.
+  
+  Usage: Include this snippet anywhere in your blog pages where you want a subscription form.
+-->
+
+<style>
+/* Subscribe Form Styles - Integrated with blog theme */
+.subscribe-container {
+  max-width: 600px;
+  margin: 2rem 0;
+  padding: 1.5rem;
+  background: radial-gradient(circle at 0% 0%, rgba(168, 85, 247, 0.15), transparent 60%),
+              var(--bg-gray-900);
+  border: 1px solid var(--border-gray-800);
+  border-radius: 0.75rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+}
+
+.subscribe-header {
+  text-align: left;
+  margin-bottom: 1.25rem;
+}
+
+.subscribe-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-white);
+  margin-bottom: 0.5rem;
+}
+
+.subscribe-description {
+  font-size: 0.95rem;
+  color: var(--text-gray-400);
+  line-height: 1.5;
+}
+
+.subscribe-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.subscribe-input-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.subscribe-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-gray-400);
+}
+
+.subscribe-input {
+  flex: 1 1 280px;
+  width: auto;
+  max-width: 100%;
+  min-width: 240px;
+  padding: 0.7rem 0.9rem;
+  min-height: 44px;
+  font-size: 1rem;
+  font-family: inherit;
+  background-color: var(--bg-black);
+  color: var(--text-white);
+  border: 1px solid var(--border-gray-800);
+  border-radius: 0.375rem;
+  transition: all 0.2s ease;
+}
+
+.subscribe-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.2);
+}
+
+.subscribe-input.error {
+  border-color: #ef4444;
+}
+
+.subscribe-error-message {
+  display: none;
+  font-size: 0.8rem;
+  color: #ef4444;
+  margin-top: 0.25rem;
+  align-self: flex-start;
+}
+
+.subscribe-error-message.show {
+  display: block;
+}
+
+.subscribe-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  padding: 0.7rem 1.25rem;
+  font-size: 1rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--text-white);
+  background-color: var(--primary);
+  border: 1px solid var(--primary);
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: 44px;
+}
+
+.subscribe-button:hover:not(:disabled) {
+  background-color: var(--primary-dark);
+  border-color: var(--primary-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(168, 85, 247, 0.4);
+}
+
+.subscribe-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.subscribe-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.subscribe-button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.subscribe-message {
+  display: none;
+  padding: 0.875rem 1rem;
+  border-radius: 0.375rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-align: center;
+  margin-top: 1rem;
+}
+
+.subscribe-message.show {
+  display: block;
+}
+
+.subscribe-message.success {
+  background-color: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.subscribe-message.error {
+  background-color: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+/* Mobile responsiveness */
+@media (max-width: 640px) {
+  .subscribe-container {
+    margin: 2rem 1rem;
+    padding: 1.5rem 1rem;
+  }
+
+  .subscribe-input-group {
+    flex-direction: column;
+    width: 100%;
+    align-items: stretch;
+  }
+
+  .subscribe-input {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .subscribe-button {
+    width: 100%;
+  }
+
+  .subscribe-title {
+    font-size: 1.25rem;
+  }
+
+  .subscribe-description {
+    font-size: 0.875rem;
+  }
+}
+
+/* Loading spinner */
+.subscribe-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  margin-left: 8px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: var(--text-white);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  vertical-align: middle;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+</style>
+
+<div class="subscribe-container">
+  <div class="subscribe-header">
+    <p class="subscribe-description">Watch a $10,000 real-money stock portfolio managed by generative AI, striving to outperform the market every day.</p>
+    <!-- <h2 class="subscribe-title">Weekly Update</h2> -->
+  </div>
+
+  <form id="subscribeForm" class="subscribe-form" novalidate>
+    <div class="subscribe-input-group">
+      <input 
+        type="email" 
+        id="emailInput" 
+        name="email" 
+        class="subscribe-input" 
+        placeholder="email@example.com"
+        required
+        autocomplete="email"
+        aria-label="Email address"
+        aria-describedby="emailError"
+      >
+      <button type="submit" id="subscribeButton" class="subscribe-button">
+        Subscribe
+      </button>
+    </div>
+
+    <span id="emailError" class="subscribe-error-message" role="alert"></span>
+
+    <div id="subscribeMessage" class="subscribe-message" role="status" aria-live="polite"></div>
+  </form>
+</div>
+
+<script nonce="qi123">
+(function() {
+  'use strict';
+
+  // Configuration - Replace with your actual Azure Function endpoint
+  const AZURE_FUNCTION_URL = 'YOUR_AZURE_FUNCTION_URL'; // e.g., 'https://your-function-app.azurewebsites.net/api/SubscribeEmail'
+
+  const form = document.getElementById('subscribeForm');
+  const emailInput = document.getElementById('emailInput');
+  const emailError = document.getElementById('emailError');
+  const subscribeButton = document.getElementById('subscribeButton');
+  const subscribeMessage = document.getElementById('subscribeMessage');
+
+  // Email validation regex (RFC 5322 simplified)
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  /**
+   * Validates email format
+   * @param {string} email - Email address to validate
+   * @returns {boolean} - True if valid, false otherwise
+   */
+  function isValidEmail(email) {
+    return emailRegex.test(email);
+  }
+
+  /**
+   * Shows error message for input field
+   * @param {string} message - Error message to display
+   */
+  function showInputError(message) {
+    emailInput.classList.add('error');
+    emailError.textContent = message;
+    emailError.classList.add('show');
+  }
+
+  /**
+   * Clears error message for input field
+   */
+  function clearInputError() {
+    emailInput.classList.remove('error');
+    emailError.textContent = '';
+    emailError.classList.remove('show');
+  }
+
+  /**
+   * Shows message to user (success or error)
+   * @param {string} message - Message to display
+   * @param {string} type - Message type: 'success' or 'error'
+   */
+  function showMessage(message, type) {
+    subscribeMessage.textContent = message;
+    subscribeMessage.className = 'subscribe-message show ' + type;
+  }
+
+  /**
+   * Hides message
+   */
+  function hideMessage() {
+    subscribeMessage.className = 'subscribe-message';
+  }
+
+  /**
+   * Sets button loading state
+   * @param {boolean} loading - Whether button is in loading state
+   */
+  function setButtonLoading(loading) {
+    if (loading) {
+      subscribeButton.disabled = true;
+      subscribeButton.innerHTML = 'Subscribing<span class="subscribe-spinner"></span>';
+    } else {
+      subscribeButton.disabled = false;
+      subscribeButton.textContent = 'Subscribe';
+    }
+  }
+
+  /**
+   * Submits email to Azure Function
+   * @param {string} email - Email address to submit
+   * @returns {Promise<object>} - Response from Azure Function
+   */
+  async function submitEmail(email) {
+    const response = await fetch(AZURE_FUNCTION_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({ email: email })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Subscription failed' }));
+      throw new Error(errorData.message || 'Subscription failed');
+    }
+
+    return await response.json();
+  }
+
+  /**
+   * Handles form submission
+   * @param {Event} e - Form submit event
+   */
+  async function handleSubmit(e) {
+    e.preventDefault();
+    
+    // Clear previous messages
+    clearInputError();
+    hideMessage();
+
+    const email = emailInput.value.trim();
+
+    // Validate email
+    if (!email) {
+      showInputError('Please enter your email address');
+      emailInput.focus();
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      showInputError('Please enter a valid email address');
+      emailInput.focus();
+      return;
+    }
+
+    // Submit to Azure Function
+    setButtonLoading(true);
+
+    try {
+      const result = await submitEmail(email);
+      
+      // Success
+      showMessage(
+        result.message || 'Thank you for subscribing! Check your inbox for confirmation.',
+        'success'
+      );
+      
+      // Reset form
+      form.reset();
+
+      // Optional: Track subscription with analytics
+      if (typeof gtag !== 'undefined') {
+        gtag('event', 'subscribe', {
+          'event_category': 'engagement',
+          'event_label': 'email_subscription'
+        });
+      }
+
+    } catch (error) {
+      // Error handling
+      console.error('Subscription error:', error);
+      showMessage(
+        error.message || 'Something went wrong. Please try again later.',
+        'error'
+      );
+    } finally {
+      setButtonLoading(false);
+    }
+  }
+
+  // Event listeners
+  form.addEventListener('submit', handleSubmit);
+
+  // Clear error on input
+  emailInput.addEventListener('input', function() {
+    if (emailInput.classList.contains('error')) {
+      clearInputError();
+    }
+    if (subscribeMessage.classList.contains('show')) {
+      hideMessage();
+    }
+  });
+
+  // Validate on blur
+  emailInput.addEventListener('blur', function() {
+    const email = emailInput.value.trim();
+    if (email && !isValidEmail(email)) {
+      showInputError('Please enter a valid email address');
+    }
+  });
+
+})();
+</script>

@@ -30,6 +30,17 @@
             html = html.replace(/\{\{rootPath\}\}/g, rootPath);
             
             element.innerHTML = html;
+
+            // Re-execute any scripts embedded in the template
+            const scripts = element.querySelectorAll('script');
+            scripts.forEach((oldScript) => {
+                const newScript = document.createElement('script');
+                Array.from(oldScript.attributes).forEach((attr) => {
+                    newScript.setAttribute(attr.name, attr.value);
+                });
+                newScript.textContent = oldScript.textContent;
+                oldScript.replaceWith(newScript);
+            });
         } catch (error) {
             console.error(`Error loading template ${templateName}:`, error);
         }
