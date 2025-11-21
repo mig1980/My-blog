@@ -165,22 +165,24 @@
             margin: 0 0 30px 0;
             position: relative;
             z-index: 1;
+            display: grid;
+            gap: 0.75rem;
         }
 
         .tool-features li {
-            padding: 0.6rem 0 0.6rem 1.75rem;
+            padding: 0;
             color: var(--text-gray-400);
             position: relative;
             font-size: 0.95em;
+            display: flex;
+            gap: 0.6rem;
         }
 
         .tool-features li::before {
-            content: '+';
-            position: absolute;
-            left: 0;
+            content: '>';
             color: var(--primary);
-            font-weight: bold;
-            font-size: 1.2em;
+            font-weight: normal;
+            font-size: 1em;
         }
 
         .security-badge {
@@ -264,7 +266,7 @@
                 <article class="tool-card">
                     <div class="tool-icon">📱</div>
                     <h2>Social Card Generator</h2>
-                    <p>Create stunning social media preview cards (Open Graph/Twitter Cards) for your blog posts. Perfect for sharing on social platforms.</p>
+                    <p>Create stunning social media preview cards (LinkedIn/X.COM Cards) for your blog posts. Perfect for sharing on social platforms.</p>
                     
                     <ul class="tool-features">
                         <li>Generate LinkedIn & X.COM Cards</li>
