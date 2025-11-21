@@ -27,6 +27,18 @@
 /* Key Metric utility extracted from Week 1 inline style */
 .key-metric { font-weight:600; color: var(--primary); }
 
+/* Heatmap Link utility */
+.heatmap-link {
+  color: #a855f7 !important;
+  transition: color 0.2s ease !important;
+  text-decoration: none !important;
+}
+
+.heatmap-link:hover {
+  color: #d8b4fe !important;
+  text-decoration: underline !important;
+}
+
 /* Reset */
 * {
   margin: 0;

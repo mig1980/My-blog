@@ -73,7 +73,13 @@ Your narrative must follow this structure:
 3. **Holdings List**
    - Paragraph introducing that the portfolio holds the following 10 stocks.
    - `ul` with all current open positions (10 stocks), using the same formatting as Week 5.
-   - A follow-up paragraph indicating:
+   - **IMMEDIATELY after the closing `</ul>` tag**, add this heatmap link:
+     ```html
+     <p class="text-gray-300 mb-6">
+       <a href="portfolio-heatmap.html" class="heatmap-link">Explore interactive analysis of each stock's performance in the portfolio right here.</a>
+     </p>
+     ```
+   - After the heatmap link, add a follow-up paragraph indicating:
      - Whether there were trades this week.
      - That performance reflects pure market movement if no trades were executed.
 
