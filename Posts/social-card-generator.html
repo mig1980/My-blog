@@ -3,19 +3,87 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Social Media Card Generator – GenAi Portfolio</title>
+  <title>Social Media Card Generator - Quantum Investor Digest</title>
   <meta name="description" content="Generate shareable Twitter and LinkedIn cards for AI-managed portfolio updates." />
+  <meta name="author" content="Michael Gavrilov">
+  <meta name="theme-color" content="#000000">
+  <meta http-equiv="X-Content-Type-Options" content="nosniff">
+  <meta http-equiv="X-Frame-Options" content="SAMEORIGIN">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'nonce-qi123' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-src 'none'; base-uri 'self'; form-action 'self';">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="robots" content="noindex, nofollow">
   <link rel="canonical" href="https://quantuminvestor.net/Posts/social-card-generator.html" />
-  <link rel="icon" href="../Media/favicon.ico" />
+  <link rel="icon" href="../Media/favicon.ico" type="image/x-icon" />
   <link rel="stylesheet" href="../styles.css" />
-  <script src="../js/template-loader.js" defer></script>
-  <script src="../js/mobile-menu.js" defer></script>
+  <script src="../js/template-loader.js" defer nonce="qi123"></script>
+  <script src="../js/mobile-menu.js" defer nonce="qi123"></script>
   <style>
     body { font-family: system-ui, sans-serif; }
     
+    .pixabay-hero {
+      position: relative;
+      padding: 2.75rem 2.5rem;
+      border-radius: 1.25rem;
+      border: 1px solid rgba(168, 85, 247, 0.4);
+      background: radial-gradient(circle at 0% 0%, rgba(168, 85, 247, 0.15), transparent 55%),
+                  radial-gradient(circle at 100% 100%, rgba(59, 130, 246, 0.12), transparent 55%),
+                  linear-gradient(135deg, rgba(10, 10, 10, 0.95), rgba(15, 23, 42, 0.95));
+      overflow: hidden;
+    }
+    
+    .pixabay-hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 20% -10%, rgba(148, 163, 184, 0.15), transparent 40%);
+      pointer-events: none;
+    }
+    
+    .pixabay-hero::after {
+      content: '';
+      position: absolute;
+      bottom: -140px;
+      right: -120px;
+      width: 320px;
+      height: 320px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(168, 85, 247, 0.35), transparent 60%);
+    }
+    
+    .pixabay-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.35rem 0.85rem;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      background-color: rgba(17, 24, 39, 0.6);
+      color: var(--text-gray-400);
+      font-size: 0.75rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+    
+    .pixabay-pill::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: radial-gradient(circle at 30% 30%, #ffffff, var(--primary));
+    }
+    
+    .pixabay-title {
+      font-size: clamp(2.4rem, 4vw, 3.25rem);
+      letter-spacing: -0.015em;
+    }
+    
+    .pixabay-hero-copy {
+      max-width: 100%;
+    }
+    
     .control-panel { background:#0c0c0c; border:1px solid #222; padding:1.5rem; border-radius:.75rem; margin-bottom:2rem; }
     .control-row { display:flex; gap:1rem; align-items:center; margin-bottom:1rem; flex-wrap:wrap; }
-    .control-row label { font-size:.85rem; color:#aaa; min-width:120px; }
+    .control-row label { font-size:0.95rem; font-weight:600; color:var(--text-white); min-width:120px; }
     .control-row select, .control-row input { background:#161616; border:1px solid #333; padding:.6rem 1rem; border-radius:.5rem; color:#fff; font-size:.9rem; }
     .control-row button { background:#7e5bef; border:none; padding:.7rem 1.5rem; border-radius:.5rem; cursor:pointer; font-weight:600; transition:all .2s; }
     .control-row button:hover { background:#9575ff; transform:translateY(-1px); }
@@ -98,7 +166,9 @@
     }
   </style>
 </head>
-<body class="bg-black text-white">
+<body class="bg-black text-white" data-theme="default">
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  
   <div id="password-gate-overlay" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.9);z-index:9999;">
     <form id="password-gate-form" style="background:#111;padding:2rem;border:1px solid #333;border-radius:.75rem;max-width:320px;width:100%;font-family:system-ui;">
       <h2 style="margin:0 0 1rem;font-size:1.2rem;color:#fff;">Protected Page</h2>
@@ -109,9 +179,17 @@
     </form>
   </div>
   <div data-template="header" data-root-path="../"></div>
-  <main class="container mx-auto px-4 py-10 max-w-7xl">
-    <h1 class="text-3xl font-bold mb-2">Social Media Card Generator</h1>
-    <p class="text-gray-400 mb-6 text-sm">Generate professional shareable cards for Twitter and LinkedIn with auto-populated portfolio metrics.</p>
+  
+  <main id="main-content" class="container mx-auto px-4 py-10 max-w-7xl" role="main">
+    <section class="pixabay-hero mb-10">
+      <div class="space-y-6">
+        <span class="pixabay-pill">Creative Tooling</span>
+        <h1 class="pixabay-title font-bold leading-tight">📱 Social Media Card Generator</h1>
+        <p class="pixabay-hero-copy text-gray-400">
+          Generate professional shareable cards for Twitter and LinkedIn with auto-populated portfolio metrics.
+        </p>
+      </div>
+    </section>
     
     <!-- Control Panel -->
     <div class="control-panel">
@@ -148,7 +226,7 @@
   </main>
   <div data-template="footer" data-root-path="../"></div>
 
-<script>
+<script nonce="qi123">
 (function(){
   let weekData = null;
   let availableWeeks = [];
@@ -436,6 +514,6 @@ window.downloadCard = async function(cardId, filename) {
 </script>
 -->
 
-<script src="../js/password-gate.js" data-password-hash="18ae8ef593e3ad19525954a455f81cc50b0b5e6462dc95468eb4d43f9d8ea17d"></script>
+<script src="../js/password-gate.js" data-password-hash="18ae8ef593e3ad19525954a455f81cc50b0b5e6462dc95468eb4d43f9d8ea17d" defer nonce="qi123"></script>
 </body>
 </html>

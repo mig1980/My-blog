@@ -3,7 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pixabay Hero Image Fetcher</title>
+    <title>Pixabay Hero Image Fetcher - Quantum Investor Digest</title>
+    <meta name="description" content="Search and download high-quality hero images from Pixabay. Customize dimensions, apply filters, and get professional visuals instantly.">
+    <meta name="author" content="Michael Gavrilov">
+    <meta name="theme-color" content="#000000">
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta http-equiv="X-Frame-Options" content="SAMEORIGIN">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'nonce-qi123' 'unsafe-inline' https://pixabay.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://pixabay.com https://cdn.pixabay.com; font-src 'self' data:; connect-src 'self' https://pixabay.com; frame-src 'none'; base-uri 'self'; form-action 'self';">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="canonical" href="https://quantuminvestor.net/pixabay-fetcher.html">
+    <link rel="icon" href="Media/favicon.ico" type="image/x-icon">
     <link rel="stylesheet" href="styles.css">
     <style>
         body.bg-black {
@@ -72,7 +82,7 @@
         }
 
         .pixabay-hero-copy {
-            max-width: 620px;
+            max-width: 100%;
         }
 
         .pixabay-checklist {
@@ -396,7 +406,9 @@
         }
     </style>
 </head>
-<body class="bg-black text-white">
+<body class="bg-black text-white" data-theme="default">
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    
     <div id="password-gate-overlay" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.9);z-index:9999;">
         <form id="password-gate-form" style="background:#111;padding:2rem;border:1px solid #333;border-radius:.75rem;max-width:320px;width:100%;font-family:system-ui;">
             <h2 style="margin:0 0 1rem;font-size:1.2rem;color:#fff;">Protected Page</h2>
@@ -406,7 +418,9 @@
             <div id="password-gate-error" style="color:#f87171;font-size:.7rem;margin-top:.75rem;display:none;"></div>
         </form>
     </div>
-    <div class="container px-4 py-12 pixabay-container">
+    <div id="header-placeholder" data-template="header" data-root-path=""></div>
+    
+    <main id="main-content" class="container px-4 py-12 pixabay-container" role="main">
         <section class="pixabay-hero mb-10">
             <div class="space-y-6">
                 <span class="pixabay-pill">Creative Tooling</span>
@@ -414,15 +428,11 @@
                 <p class="pixabay-hero-copy text-gray-400">
                     Discover, resize, and export high-impact hero imagery without leaving the Quantum Investor toolkit. Set your preferred size once, explore curated results, and download production-ready assets in seconds.
                 </p>
-                <ul class="pixabay-checklist">
-                    <li>Guided filters for faster curation</li>
-                    <li>Canvas-based resizing and smart fit</li>
-                    <li>One-click downloads in WebP, JPG, PNG</li>
-                    <li>Up to 20 options per search</li>
-                </ul>
                 <div class="pixabay-actions">
-                    <button id="apiKeyButton" class="api-key-btn">🔑 Set API Key</button>
-                    <a class="text-sm text-gray-400 hover:text-white transition-colors" href="https://pixabay.com/api/docs/" target="_blank" rel="noopener">Pixabay API guide -></a>
+                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                        <button id="apiKeyButton" class="api-key-btn">🔑 Set API Key</button>
+                        <a class="text-sm text-gray-400 hover:text-white transition-colors" href="https://pixabay.com/api/docs/" target="_blank" rel="noopener">Pixabay API guide -></a>
+                    </div>
                 </div>
             </div>
             <div class="pixabay-meta">
@@ -445,12 +455,10 @@
             </div>
         </section>
 
-        <div class="grid lg:grid-cols-3 gap-8">
-            <div class="lg:col-span-2 space-y-6">
-                <div id="status" class="status" style="display: none;"></div>
+        <div id="status" class="status" style="display: none;"></div>
 
-                <section class="pixabay-panel">
-                    <h2 class="text-xl font-semibold">Search Parameters</h2>
+        <section class="pixabay-panel">
+            <h2 class="text-xl font-semibold">Search Parameters</h2>
                     <div class="space-y-6">
                         <div class="form-group">
                             <label for="query">Search Query *</label>
@@ -536,39 +544,29 @@
                         </button>
                     </div>
                 </section>
-            </div>
 
-            <aside class="space-y-6">
-                <section class="pixabay-panel">
-                    <h2 class="text-lg font-semibold">Search Tips</h2>
-                    <ul class="pixabay-tip-list">
-                        <li>Pair a concept with a mood: "finance ai neon", "stocks volatility calm".</li>
-                        <li>Use the color filter to align with the homepage gradient palette.</li>
-                        <li>Include action verbs like "surge", "glow", or "connected" for motion.</li>
-                        <li>Keep people-focused searches to the "people" category for portraits.</li>
-                    </ul>
-                </section>
-
-                <section class="pixabay-panel">
-                    <h2 class="text-lg font-semibold">Workflow Notes</h2>
-                    <ul class="pixabay-tip-list">
-                        <li>Downloads save locally - drag favorites into <code>Media/PostImages</code>.</li>
-                        <li>Resizing uses smart-fit to keep focal points centered on the canvas.</li>
-                        <li>Switch to JPG for newsletters and PNG for overlays or comps.</li>
-                        <li>API key stays in localStorage and never leaves your browser.</li>
-                    </ul>
-                </section>
-            </aside>
-        </div>
+        <section class="pixabay-panel mt-8">
+            <h2 class="text-lg font-semibold">* Search Tips</h2>
+            <ul class="pixabay-tip-list">
+                <li>Pair a concept with a mood: "finance ai neon", "stocks volatility calm".</li>
+                <li>Use the color filter to align with the homepage gradient palette.</li>
+                <li>Include action verbs like "surge", "glow", or "connected" for motion.</li>
+                <li>Keep people-focused searches to the "people" category for portraits.</li>
+            </ul>
+        </section>
 
         <div id="results" class="pixabay-panel mt-10" style="display: none;">
             <h2 class="text-xl font-semibold mb-4">Search Results</h2>
             <div id="resultsGrid"></div>
         </div>
-    </div>
+    </main>
 
-    <script src="js/password-gate.js" data-password-hash="18ae8ef593e3ad19525954a455f81cc50b0b5e6462dc95468eb4d43f9d8ea17d"></script>
-    <script>
+    <div id="footer-placeholder" data-template="footer" data-root-path=""></div>oot-path=""></div>
+
+    <script src="js/template-loader.js" defer nonce="qi123"></script>
+    <script src="js/mobile-menu.js" defer nonce="qi123"></script>
+    <script src="js/password-gate.js" data-password-hash="18ae8ef593e3ad19525954a455f81cc50b0b5e6462dc95468eb4d43f9d8ea17d" defer nonce="qi123"></script>
+    <script nonce="qi123">
         'use strict';
         
         // Constants

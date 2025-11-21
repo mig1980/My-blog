@@ -18,45 +18,66 @@
     <script src="js/template-loader.js" defer nonce="qi123"></script>
     <script src="js/mobile-menu.js" defer nonce="qi123"></script>
     <style>
-        .tools-hero {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 80px 20px;
-            margin-bottom: 60px;
-            border-radius: 16px;
-            text-align: center;
+        .pixabay-hero {
             position: relative;
+            padding: 2.75rem 2.5rem;
+            border-radius: 1.25rem;
+            border: 1px solid rgba(168, 85, 247, 0.4);
+            background: radial-gradient(circle at 0% 0%, rgba(168, 85, 247, 0.15), transparent 55%),
+                        radial-gradient(circle at 100% 100%, rgba(59, 130, 246, 0.12), transparent 55%),
+                        linear-gradient(135deg, rgba(10, 10, 10, 0.95), rgba(15, 23, 42, 0.95));
             overflow: hidden;
+            margin-bottom: 60px;
         }
 
-        .tools-hero::before {
+        .pixabay-hero::before {
             content: '';
             position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-            opacity: 0.3;
+            inset: 0;
+            background: radial-gradient(circle at 20% -10%, rgba(148, 163, 184, 0.15), transparent 40%);
+            pointer-events: none;
         }
 
-        .tools-hero-content {
-            position: relative;
-            z-index: 1;
+        .pixabay-hero::after {
+            content: '';
+            position: absolute;
+            bottom: -140px;
+            right: -120px;
+            width: 320px;
+            height: 320px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(168, 85, 247, 0.35), transparent 60%);
         }
 
-        .tools-hero h1 {
-            font-size: 3.5em;
-            font-weight: 800;
-            margin-bottom: 20px;
-            color: white;
-            text-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        .pixabay-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.35rem 0.85rem;
+            border-radius: 999px;
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            background-color: rgba(17, 24, 39, 0.6);
+            color: var(--text-gray-400);
+            font-size: 0.75rem;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
         }
 
-        .tools-hero p {
-            font-size: 1.3em;
-            color: rgba(255,255,255,0.9);
-            max-width: 600px;
-            margin: 0 auto;
+        .pixabay-pill::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            border-radius: 999px;
+            background: radial-gradient(circle at 30% 30%, #ffffff, var(--primary));
+        }
+
+        .pixabay-title {
+            font-size: clamp(2.4rem, 4vw, 3.25rem);
+            letter-spacing: -0.015em;
+        }
+
+        .pixabay-hero-copy {
+            max-width: 100%;
         }
 
         .tools-grid {
@@ -66,6 +87,12 @@
             max-width: 1200px;
             margin: 0 auto;
             padding: 0 20px 80px;
+        }
+
+        .tool-card-link {
+            text-decoration: none;
+            color: inherit;
+            display: block;
         }
 
         .tool-card {
@@ -169,9 +196,10 @@
             box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
             position: relative;
             z-index: 1;
+            pointer-events: none;
         }
 
-        .tool-button:hover {
+        .tool-card-link:hover .tool-button {
             transform: translateY(-2px);
             box-shadow: 0 6px 25px rgba(102, 126, 234, 0.6);
         }
@@ -221,50 +249,53 @@
 
     <main id="main-content" class="container mx-auto px-4 py-12" role="main">
         <!-- Hero Section -->
-        <div class="tools-hero">
-            <div class="tools-hero-content">
-                <h1>🛠️ Content Creation Tools</h1>
-                <p>Professional tools for generating hero images and social media cards</p>
+        <section class="pixabay-hero">
+            <div class="space-y-6">
+                <span class="pixabay-pill">Creative Tooling</span>
+                <h1 class="pixabay-title font-bold leading-tight">🛠️ Content Creation Tools</h1>
+                <p class="pixabay-hero-copy text-gray-400">
+                    Professional tools for generating hero images and social media cards
+                </p>
             </div>
-        </div>
+        </section>
 
         <!-- Tools Grid -->
         <div class="tools-grid">
             <!-- Pixabay Hero Image Fetcher -->
-            <article class="tool-card">
-                <div class="tool-icon">🖼️</div>
-                <h2>Hero Image Fetcher</h2>
-                <p>Search and download high-quality hero images from Pixabay for your blog posts. Customize dimensions, apply filters, and get professional visuals instantly.</p>
-                
-                <ul class="tool-features">
-                    <li>Search 2M+ high-quality images</li>
-                    <li>Custom dimensions (default 1200x800)</li>
-                    <li>Category & color filters</li>
-                    <li>Multiple format support (WebP, JPG, PNG)</li>
-                    <li>Browser-based resizing & cropping</li>
-                    <li>No backend required</li>
-                </ul>
-                
-                <a href="pixabay-fetcher.html" class="tool-button">Launch Hero Image Fetcher -></a>
-            </article>
+            <a href="pixabay-fetcher.html" class="tool-card-link">
+                <article class="tool-card">
+                    <div class="tool-icon">🖼️</div>
+                    <h2>Hero Image Fetcher</h2>
+                    <p>Search and download high-quality hero images from Pixabay for your blog posts. Customize dimensions, apply filters, and get professional visuals instantly.</p>
+                    
+                    <ul class="tool-features">
+                        <li>Search 2M+ high-quality images</li>
+                        <li>Custom dimensions (default 1200x800)</li>
+                        <li>Category & color filters</li>
+                        <li>Multiple format support (WebP, JPG, PNG)</li>
+                        <li>Browser-based resizing & cropping</li>
+                        <li>No backend required</li>
+                    </ul>
+                </article>
+            </a>
 
             <!-- Social Card Generator -->
-            <article class="tool-card">
-                <div class="tool-icon">📱</div>
-                <h2>Social Card Generator</h2>
-                <p>Create stunning social media preview cards (Open Graph/Twitter Cards) for your blog posts. Perfect for sharing on social platforms.</p>
-                
-                <ul class="tool-features">
-                    <li>Generate OG & Twitter Cards</li>
-                    <li>Custom text & styling</li>
-                    <li>Optimized dimensions (1200x630)</li>
-                    <li>Brand-consistent design</li>
-                    <li>Instant preview & download</li>
-                    <li>Multiple export formats</li>
-                </ul>
-                
-                <a href="Posts/social-card-generator.html" class="tool-button">Launch Social Card Generator -></a>
-            </article>
+            <a href="Posts/social-card-generator.html" class="tool-card-link">
+                <article class="tool-card">
+                    <div class="tool-icon">📱</div>
+                    <h2>Social Card Generator</h2>
+                    <p>Create stunning social media preview cards (Open Graph/Twitter Cards) for your blog posts. Perfect for sharing on social platforms.</p>
+                    
+                    <ul class="tool-features">
+                        <li>Generate OG & Twitter Cards</li>
+                        <li>Custom text & styling</li>
+                        <li>Optimized dimensions (1200x630)</li>
+                        <li>Brand-consistent design</li>
+                        <li>Instant preview & download</li>
+                        <li>Multiple export formats</li>
+                    </ul>
+                </article>
+            </a>
         </div>
 
         <!-- Security Notice -->
