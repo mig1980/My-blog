@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Documentation – Quantum Investor Digest</title>
-    <meta name="description" content="Technical documentation for the Quantum Investor Digest AI-managed portfolio: architecture, data pipeline, and contributing guide.">
+    <title>Technical Documentation - Quantum Investor Digest</title>
+    <meta name="description" content="Technical documentation: architecture, tech stack, automation workflow, AI methodology, and development practices powering the AI-managed portfolio experiment.">
     <meta name="author" content="Michael Gavrilov">
     <meta name="theme-color" content="#000000">
     <meta http-equiv="X-Content-Type-Options" content="nosniff">
@@ -15,13 +15,13 @@
     <link rel="icon" href="Media/favicon.ico" type="image/x-icon">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://quantuminvestor.net/docs.html">
-    <meta property="og:title" content="Documentation – Quantum Investor Digest">
-    <meta property="og:description" content="Technical deep-dive into the AI-managed portfolio engine and how to contribute.">
+    <meta property="og:title" content="Technical Documentation - Quantum Investor Digest">
+    <meta property="og:description" content="Explore the technical architecture, AI automation workflow, and development methodology behind the GenAI-managed investment portfolio.">
     <meta property="og:image" content="https://quantuminvestor.net/Media/OG-Image.png">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:site" content="@qid2025">
-    <meta name="twitter:title" content="Documentation – Quantum Investor Digest">
-    <meta name="twitter:description" content="Technical deep-dive into the AI-managed portfolio engine and how to contribute.">
+    <meta name="twitter:title" content="Technical Documentation - Quantum Investor Digest">
+    <meta name="twitter:description" content="Technical architecture and AI methodology powering the autonomous portfolio management system.">
     <meta name="twitter:image" content="https://quantuminvestor.net/Media/OG-Image.png">
     <link rel="stylesheet" href="styles.css">
     <script src="js/template-loader.js" defer nonce="qi123"></script>
@@ -30,291 +30,408 @@
     {
       "@context": "https://schema.org",
       "@type": "TechArticle",
-      "headline": "Quantum Investor Digest Documentation",
-      "description": "Technical documentation for the Quantum Investor Digest AI-managed portfolio: architecture, data pipeline, and contributing guide.",
-      "author": {"@type": "Person", "name": "Michael Gavrilov"},
+      "name": "Technical Documentation - Quantum Investor Digest",
       "url": "https://quantuminvestor.net/docs.html",
+      "description": "Technical documentation covering architecture, tech stack, automation workflow, and AI methodology.",
+      "author": {
+        "@type": "Person",
+        "name": "Michael Gavrilov"
+      },
       "publisher": {
         "@type": "Organization",
         "name": "Quantum Investor Digest",
-        "logo": {"@type": "ImageObject", "url": "https://quantuminvestor.net/Media/LogoB.webp"}
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://quantuminvestor.net/Media/LogoB.webp"
+        }
       }
     }
     </script>
+    <script type="application/ld+json" nonce="qi123">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://quantuminvestor.net/"},
+        {"@type": "ListItem", "position": 2, "name": "Documentation", "item": "https://quantuminvestor.net/docs.html"}
+      ]
+    }
+    </script>
 </head>
-<body data-theme="default">
+<body data-theme="default" class="docs-page">
     <a href="#main-content" class="skip-link">Skip to main content</a>
     <!-- Header -->
     <div data-template="header" data-root-path=""></div>
 
     <main id="main-content" class="container mx-auto px-4 py-12" role="main">
-        <article class="max-w-3xl mx-auto max-w-none">
-            <header class="mb-12 docs-hero">
-                <div class="docs-hero-inner">
-                    <div>
-                        <div class="docs-hero-pill">
-                            <span class="docs-hero-pill-dot" aria-hidden="true"></span>
-                            <span>Docs · Quantum Investor Digest</span>
-                        </div>
-                        <h1 class="docs-hero-title font-bold">Documentation &amp; System Blueprint</h1>
-                        <p class="docs-hero-subtitle text-lg">A technical map of how the GenAI-managed portfolio is wired together – from raw market data to the weekly posts you read.</p>
+        
+        <!-- Hero Section -->
+        <section class="docs-hero mb-12">
+            <div class="docs-hero-inner">
+                <div>
+                    <div class="docs-hero-pill">
+                        <div class="docs-hero-pill-dot"></div>
+                        <span>Technical Documentation</span>
                     </div>
-                </div>
-            </header>
-
-            <section class="mb-12" aria-labelledby="how-it-works-heading">
-                <h2 id="how-it-works-heading" class="text-2xl font-bold mb-4">How It Works – Technical Deep Dive</h2>
-                <p class="mb-4">Quantum Investor Digest is a fully automated, AI-assisted content pipeline that produces a weekly performance update for the GenAI-managed stock portfolio. The system is orchestrated by a Python script, <code>scripts/portfolio_automation.py</code>, which coordinates data ingestion, analysis, AI calls, and HTML generation.</p>
-                <h3 class="text-xl font-semibold mb-3">High-Level Architecture</h3>
-                <ul class="list-disc list-inside mb-4">
-                    <li><strong>Data Layer</strong> – Historical prices, benchmarks, and portfolio history live in the consolidated <code>master data/master.json</code> file. Legacy weekly snapshots remain in <code>Data/W*</code> folders for reference.</li>
-                    <li><strong>AI Layer</strong> – A sequence of prompts (Prompt A → B → C → D) run against OpenAI models to generate narrative, SEO metadata, and visuals.</li>
-                    <li><strong>Presentation Layer</strong> – Final posts are emitted as static HTML into <code>Posts/</code>, styled with <code>styles.css</code> and hydrated with small JS utilities like <code>tldr.js</code>.</li>
-                </ul>
-
-                <h3 class="text-xl font-semibold mb-3">Weekly Pipeline</h3>
-                <ol class="list-decimal list-inside mb-4">
-                    <li><strong>Run the Automation Script</strong> – Execute <code>portfolio_automation.py</code> with a target week number and data source (LLM or Alpha Vantage).</li>
-                    <li><strong>Update <code>master.json</code></strong> – Either the AI (Prompt A) or Alpha Vantage updates the structured portfolio data for the new week.</li>
-                    <li><strong>Generate Narrative &amp; SEO</strong> – Prompt B produces <code>narrative.html</code> and <code>seo.json</code> from <code>master.json</code>.</li>
-                    <li><strong>Create Visuals</strong> – Prompt C generates a performance table and normalized performance chart.</li>
-                    <li><strong>Assemble Final Post</strong> – Prompt D stitches everything into a single HTML file, and the script standardizes the <code>&lt;head&gt;</code> (CSP, JSON-LD, shared scripts).</li>
-                    <li><strong>Regenerate Index</strong> – The posts index (<code>Posts/posts.html</code>) is rebuilt from the current set of weekly posts.</li>
-                </ol>
-
-                <h3 class="text-xl font-semibold mb-3">Security &amp; Performance Hardening</h3>
-                <p class="mb-3">The site is hardened as a static, CSP-protected deployment:</p>
-                <ul class="list-disc list-inside mb-4">
-                    <li><strong>Content Security Policy</strong> – A blog-friendly CSP allows inline styles, popular CDNs (jsdelivr, cdnjs), Google Analytics, and Google Fonts, while maintaining nonce-based script validation and blocking unauthorized external resources.</li>
-                    <li><strong>Static Generation</strong> – All weekly posts are pre-rendered HTML files, reducing attack surface and improving performance.</li>
-                    <li><strong>Image Optimization</strong> – Weekly hero and snippet images are generated with Pillow and exported as optimized WEBP/PNG assets.</li>
-                    <li><strong>Accessibility</strong> – Skip links, semantic headings, and ARIA attributes make the content screen-reader friendly.</li>
-                </ul>
-            </section>
-
-            <section class="mb-12" aria-labelledby="tools-stack-heading">
-                <h2 id="tools-stack-heading" class="text-2xl font-bold mb-4">Tools &amp; Stack</h2>
-                <p class="mb-4">Here are the core tools, products, and technologies that power this project end-to-end &mdash; from data collection and AI orchestration to writing, automation, and deployment.</p>
-
-                <div class="grid gap-4 sm:grid-cols-2">
-                    <div class="flex items-start p-4 border border-gray-800 rounded-lg bg-black/40">
-                        <div class="mr-3 text-xl" aria-hidden="true">
-                            💻
+                    <h1 class="docs-hero-title">
+                        Architecture, Tech Stack & <span class="text-purple-500">AI Automation</span>
+                    </h1>
+                    <p class="docs-hero-subtitle">
+                        Comprehensive technical documentation of the GenAI-powered portfolio management system: 
+                        infrastructure, automation workflows, methodology, and best practices.
+                    </p>
+                    <div class="docs-hero-metrics">
+                        <div class="docs-hero-metric">
+                            <div class="docs-hero-metric-label">Stack Components</div>
+                            <div class="docs-hero-metric-value text-purple-400">15+</div>
                         </div>
-                        <div>
-                            <h3 class="font-semibold mb-1">Python &amp; Data Stack</h3>
-                            <p class="text-sm text-gray-300 mb-1">Python, pandas, and NumPy for portfolio math, data munging, and weekly pipeline logic.</p>
-                            <p class="text-xs text-gray-500">Files: <code>scripts/portfolio_automation.py</code>, <code>Data/</code> directory.</p>
+                        <div class="docs-hero-metric">
+                            <div class="docs-hero-metric-label">API Integrations</div>
+                            <div class="docs-hero-metric-value text-purple-400">4</div>
                         </div>
-                    </div>
-
-                    <div class="flex items-start p-4 border border-gray-800 rounded-lg bg-black/40">
-                        <div class="mr-3 text-xl" aria-hidden="true">
-                            🤖
-                        </div>
-                        <div>
-                            <h3 class="font-semibold mb-1">LLM &amp; Prompting</h3>
-                            <p class="text-sm text-gray-300 mb-1">OpenAI models via API for Prompts A–D to generate structured data, narrative, SEO, and visuals.</p>
-                            <p class="text-xs text-gray-500">Specs: Prompt gallery below, <code>Prompt/Prompt-A–D</code> prompt documents.</p>
-                        </div>
-                    </div>
-
-                    <div class="flex items-start p-4 border border-gray-800 rounded-lg bg-black/40">
-                        <div class="mr-3 text-xl" aria-hidden="true">
-                            📊
-                        </div>
-                        <div>
-                            <h3 class="font-semibold mb-1">Market Data &amp; Benchmarks</h3>
-                            <p class="text-sm text-gray-300 mb-1">Alpha Vantage and structured CSV/JSON files for prices, history, and benchmark series.</p>
-                            <p class="text-xs text-gray-500">Files: <code>master data/master.json</code> (consolidated), legacy <code>Data/W*</code> snapshots.</p>
-                        </div>
-                    </div>
-
-                    <div class="flex items-start p-4 border border-gray-800 rounded-lg bg-black/40">
-                        <div class="mr-3 text-xl" aria-hidden="true">
-                            🖼️
-                        </div>
-                        <div>
-                            <h3 class="font-semibold mb-1">Static Site &amp; Media</h3>
-                            <p class="text-sm text-gray-300 mb-1">Hand-crafted HTML, a shared <code>styles.css</code>, and Python-powered image generation for posts.</p>
-                            <p class="text-xs text-gray-500">Files: <code>index.html</code>, <code>Posts/</code>, <code>Media/PostImages/</code>, <code>scripts/hero_image_generator.py</code>.</p>
-                        </div>
-                    </div>
-
-                    <div class="flex items-start p-4 border border-gray-800 rounded-lg bg-black/40">
-                        <div class="mr-3 text-xl" aria-hidden="true">
-                            🧩
-                        </div>
-                        <div>
-                            <h3 class="font-semibold mb-1">Automation &amp; Snippets</h3>
-                            <p class="text-sm text-gray-300 mb-1">Custom Python utilities to regenerate weekly posts, snippet cards, and index pages with one command.</p>
-                            <p class="text-xs text-gray-500">Files: <code>scripts/snippet_card_generator.py</code>, <code>test_automation.py</code>.</p>
-                        </div>
-                    </div>
-
-                    <div class="flex items-start p-4 border border-gray-800 rounded-lg bg-black/40">
-                        <div class="mr-3 text-xl" aria-hidden="true">
-                            🧪
-                        </div>
-                        <div>
-                            <h3 class="font-semibold mb-1">Editing &amp; Workflow</h3>
-                            <p class="text-sm text-gray-300 mb-1">VS Code, GitHub, and a simple local Python environment for iterative prompt and pipeline tuning.</p>
-                            <p class="text-xs text-gray-500">See <code>automation_setup.md</code> for a detailed setup walkthrough.</p>
+                        <div class="docs-hero-metric">
+                            <div class="docs-hero-metric-label">Automation Pipeline</div>
+                            <div class="docs-hero-metric-value text-purple-400">5 Stages</div>
                         </div>
                     </div>
                 </div>
-            </section>
+                <div>
+                    <div class="docs-hero-panel">
+                        <div class="docs-hero-panel-header">
+                            <div class="docs-hero-panel-title">System Status</div>
+                            <div class="docs-hero-panel-status">
+                                <div class="docs-hero-panel-status-dot"></div>
+                                Operational
+                            </div>
+                        </div>
+                        <ul class="docs-hero-panel-list">
+                            <li><div class="docs-hero-panel-bullet">✓</div> <span>Weekly automation active</span></li>
+                            <li><div class="docs-hero-panel-bullet">✓</div> <span>Real-time price feeds</span></li>
+                            <li><div class="docs-hero-panel-bullet">✓</div> <span>AI narrative generation</span></li>
+                            <li><div class="docs-hero-panel-bullet">✓</div> <span>Performance tracking</span></li>
+                        </ul>
+                        <div class="docs-hero-panel-footer">
+                            <span class="docs-hero-panel-tag">Updated: November 2025</span>
+                            <a href="https://github.com/mig1980/quantuminvestor" class="docs-hero-panel-link" target="_blank" rel="noopener noreferrer">
+                                <span>View on GitHub →</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
 
-            <section class="mb-12" aria-labelledby="strategy-methodology-heading">
-                <h2 id="strategy-methodology-heading" class="text-2xl font-bold mb-4">Strategy &amp; Methodology</h2>
-                <p class="mb-4">The GenAI-managed portfolio is intentionally simple, rules-based, and transparent. The goal is not to maximize short-term returns at any cost, but to create a repeatable, inspectable process that balances learning value with real-world constraints.</p>
-
-                <h3 class="text-xl font-semibold mb-3">Core Objectives</h3>
-                <ul class="list-disc list-inside mb-4">
-                    <li>Track how a GenAI-driven stock selection process behaves over time.</li>
-                    <li>Stay comparable to broad market benchmarks (S&amp;P 500, Bitcoin).</li>
-                    <li>Prioritize clarity, auditability, and educational value over complexity.</li>
-                </ul>
-
-                <h3 class="text-xl font-semibold mb-3">Portfolio Construction</h3>
-                <ul class="list-disc list-inside mb-4">
-                    <li><strong>Universe</strong> – Large, liquid U.S. stocks with reliable market data.</li>
-                    <li><strong>Position Sizing</strong> – Equal-weight starting allocations with small, bounded adjustments week-to-week.</li>
-                    <li><strong>Turnover Constraints</strong> – Caps on the number of changes per week to avoid over-trading and narrative whiplash.</li>
-                    <li><strong>Cash Handling</strong> – Small residual cash balances are allowed; the portfolio is kept mostly invested.</li>
-                </ul>
-
-                <h3 class="text-xl font-semibold mb-3">GenAI Decision Process</h3>
-                <ul class="list-disc list-inside mb-4">
-                    <li><strong>Input Signals</strong> – Recent returns, drawdowns, sector tilts, and simple risk flags derived from <code>master.json</code>.</li>
-                    <li><strong>OpenAI Model Role</strong> – The OpenAI model acts as an analyst and editor, proposing changes and explaining the rationale, but is constrained by explicit rules in the prompts.</li>
-                    <li><strong>Guardrails</strong> – Prompts discourage concentrated bets, unsupported macro calls, and excessive turnover. The system favors incremental adjustments.</li>
-                    <li><strong>Human Oversight</strong> – Final allocations are always reviewed by a human before being written to production data.</li>
-                </ul>
-
-                <h3 class="text-xl font-semibold mb-3">Risk &amp; Benchmarking</h3>
-                <ul class="list-disc list-inside mb-4">
-                    <li><strong>Primary Benchmark</strong> – S&amp;P 500 total return, representing a diversified U.S. equity portfolio.</li>
-                    <li><strong>Secondary Benchmark</strong> – Bitcoin, to illustrate contrast with a high-volatility, single-asset exposure.</li>
-                    <li><strong>Risk Framing</strong> – The project surfaces drawdowns, volatility, and tracking error in plain language instead of optimizing against a single risk metric.</li>
-                    <li><strong>Time Horizon</strong> – The focus is on multi-quarter behavior rather than week-to-week wins.</li>
-                </ul>
-
-                <h3 class="text-xl font-semibold mb-3">Limitations &amp; Disclaimers</h3>
-                <ul class="list-disc list-inside mb-4">
-                    <li>The system is experimental and educational, not a production trading stack.</li>
-                    <li>Backtests are minimal; performance is mostly “live” from the inception date.</li>
-                    <li>Market data may contain errors or gaps; all numbers should be treated as approximate.</li>
-                    <li>Nothing here is investment advice; readers should do their own research and consider their risk tolerance.</li>
-                </ul>
-                <p class="text-gray-400 text-sm">This section is intentionally high-level and will evolve over time as the prompts, data sources, and risk framing improve. When changes are made to the strategy or methodology, they are documented in the weekly posts and in the repository history.</p>
-            </section>
-
-            <section class="mb-12" aria-labelledby="prompt-gallery-heading">
-                <h2 id="prompt-gallery-heading" class="text-2xl font-bold mb-4">Prompt Gallery (A–D)</h2>
-                <p class="mb-4 text-gray-400">
-                    This gallery summarizes the four main prompts that power the GenAI-managed portfolio pipeline.
-                    The text below is intentionally high-level and sanitized so the system can be shared and discussed
-                    without exposing every implementation detail.
-                </p>
-                <!-- Prompt A -->
-                <details class="mb-4 border border-gray-800 rounded-lg">
-                    <summary class="p-4 cursor-pointer text-lg font-semibold">Prompt A – Data Engine</summary>
-                    <div class="p-6 pt-2">
-                        <p class="mb-3">
-                            Prompt A turns raw market data into a structured weekly snapshot of the portfolio. It updates
-                            <code>master.json</code> with current prices, weekly and since-inception performance, benchmark
-                            comparisons, and a normalized performance series for GenAI, S&amp;P 500, and Bitcoin.
+        <!-- Main Content Grid -->
+        <div class="docs-grid">
+            
+            <!-- Left Column: Main Content -->
+            <div class="space-y-6">
+                
+                <!-- Tech Stack Section -->
+                <section id="tech-stack" class="docs-section-card">
+                    <h2>
+                        Tech Stack
+                        <span class="docs-section-pill">
+                            <div class="docs-section-pill-dot"></div>
+                            Core Infrastructure
+                        </span>
+                    </h2>
+                    <div class="docs-section-body">
+                        <p class="text-gray-400 mb-4">
+                            A modern, cloud-native stack combining Python automation, AI-powered content generation, 
+                            and static site deployment for maximum performance and reliability.
                         </p>
-                        <h4 class="font-semibold mb-1 text-sm tracking-tighter uppercase">Typical Input</h4>
-                        <ul class="list-disc list-inside mb-3 text-sm">
-                            <li>Previous week&rsquo;s <code>master.json</code> (portfolio history, holdings, benchmarks).</li>
-                            <li>Latest prices and dates for each stock and benchmark.</li>
-                            <li>Configuration notes (current week number, evaluation date overrides).</li>
-                        </ul>
-                        <h4 class="font-semibold mb-1 text-sm tracking-tighter uppercase">Typical Output</h4>
-                        <ul class="list-disc list-inside mb-0 text-sm">
-                            <li>Updated <code>master.json</code> with a new week appended to portfolio history.</li>
-                            <li>Recalculated weekly and total % changes per stock and benchmark.</li>
-                            <li>Normalized performance entries suitable for charting.</li>
-                        </ul>
-                    </div>
-                </details>
+                        
+                        <h3 class="text-xl font-semibold mt-6 mb-3">Backend & Automation</h3>
+                        <div class="docs-chips-row">
+                            <span class="docs-chip">🐍 Python 3.10+</span>
+                            <span class="docs-chip">⚡ Azure OpenAI API</span>
+                            <span class="docs-chip">📊 Alpha Vantage API</span>
+                            <span class="docs-chip">📈 Marketstack API</span>
+                            <span class="docs-chip">🔗 Finnhub API</span>
+                            <span class="docs-chip">🤖 GPT-4.1</span>
+                        </div>
+                        <p class="text-gray-400 text-sm mt-3">
+                            Python orchestrates the entire automation pipeline: fetching real-time market data from multiple 
+                            financial APIs, calculating portfolio metrics, validating calculations, generating visual components, 
+                            and coordinating AI-driven content creation through Azure OpenAI's GPT-4.1 deployment.
+                        </p>
 
-                <!-- Prompt B -->
-                <details class="mb-4 border border-gray-800 rounded-lg">
-                    <summary class="p-4 cursor-pointer text-lg font-semibold">Prompt B – Narrative Writer</summary>
-                    <div class="p-6 pt-2">
-                    <p class="mb-3">
-                        Prompt B converts structured data into human-readable narrative. It writes the weekly article
-                        body (<code>narrative.html</code>) and SEO metadata (<code>seo.json</code>) based on the
-                        numbers in <code>master.json</code>.
-                    </p>
-                    <h4 class="font-semibold mb-1 text-sm tracking-tighter uppercase">Typical Input</h4>
-                    <ul class="list-disc list-inside mb-3 text-sm">
-                        <li>The latest <code>master.json</code> (portfolio totals, top movers, benchmarks, history).</li>
-                        <li>High-level style instructions (tone, audience, structure).</li>
-                    </ul>
-                    <h4 class="font-semibold mb-1 text-sm tracking-tighter uppercase">Typical Output</h4>
-                    <ul class="list-disc list-inside mb-0 text-sm">
-                        <li><code>narrative.html</code>  a structured prose block with headings, paragraphs, and lists
-                            describing weekly performance, risks, and outlook.</li>
-                        <li><code>seo.json</code>  title, description, canonical URL, OG/Twitter fields for the week.</li>
-                    </ul>
-                    </div>
-                </details>
+                        <h3 class="text-xl font-semibold mt-6 mb-3">Frontend & Presentation</h3>
+                        <div class="docs-chips-row">
+                            <span class="docs-chip">📄 Semantic HTML5</span>
+                            <span class="docs-chip">🎨 Custom CSS (Utility-First)</span>
+                            <span class="docs-chip">⚡ Vanilla JavaScript</span>
+                            <span class="docs-chip">📱 Responsive Design</span>
+                            <span class="docs-chip">🔒 CSP Headers</span>
+                        </div>
+                        <p class="text-gray-400 text-sm mt-3">
+                            Zero-dependency frontend architecture prioritizing performance, accessibility, and security. 
+                            Custom utility CSS system provides Tailwind-like flexibility without build complexity. 
+                            Mobile-first responsive design with optimized touch targets and viewport handling.
+                        </p>
 
-                <!-- Prompt C -->
-                <details class="mb-4 border border-gray-800 rounded-lg">
-                    <summary class="p-4 cursor-pointer text-lg font-semibold">Prompt C – Visual Generator</summary>
-                    <div class="p-6 pt-2">
-                    <p class="mb-3">
-                        Prompt C focuses on visuals. It takes the numeric history and produces a performance snapshot
-                        table and a normalized performance chart that compare the GenAI portfolio vs S&amp;P 500 and
-                        Bitcoin.
-                    </p>
-                    <h4 class="font-semibold mb-1 text-sm tracking-tighter uppercase">Typical Input</h4>
-                    <ul class="list-disc list-inside mb-3 text-sm">
-                        <li>The same <code>master.json</code> used by Prompt B.</li>
-                        <li>Layout expectations for the table and chart containers.</li>
-                    </ul>
-                    <h4 class="font-semibold mb-1 text-sm tracking-tighter uppercase">Typical Output</h4>
-                    <ul class="list-disc list-inside mb-0 text-sm">
-                        <li><code>performance_table.html</code>  responsive table markup summarizing key weekly metrics.</li>
-                        <li><code>performance_chart.svg</code> (inside a container)  normalized performance lines with legend.</li>
-                    </ul>
-                    </div>
-                </details>
+                        <h3 class="text-xl font-semibold mt-6 mb-3">Data & Storage</h3>
+                        <div class="docs-chips-row">
+                            <span class="docs-chip">📦 JSON (master.json)</span>
+                            <span class="docs-chip">🗄️ File-Based Storage</span>
+                            <span class="docs-chip">📂 Git Version Control</span>
+                            <span class="docs-chip">☁️ GitHub Pages</span>
+                            <span class="docs-chip">🔄 Automated Backups</span>
+                        </div>
+                        <p class="text-gray-400 text-sm mt-3">
+                            Single source of truth: <code>master.json</code> consolidates all portfolio history, stock prices, 
+                            benchmark data, and normalized performance metrics. Timestamped backups archived automatically. 
+                            Git provides complete audit trail and rollback capability. Static hosting ensures blazing-fast global delivery.
+                        </p>
 
-                <!-- Prompt D -->
-                <details class="mb-4 border border-gray-800 rounded-lg">
-                    <summary class="p-4 cursor-pointer text-lg font-semibold">Prompt D – Final Assembler</summary>
-                    <div class="p-6 pt-2">
-                    <p class="mb-3">
-                        Prompt D is the final assembler. It combines the narrative, visuals, SEO metadata, and global
-                        layout guidelines into a single, production-ready HTML page for the given week.
-                    </p>
-                    <h4 class="font-semibold mb-1 text-sm tracking-tighter uppercase">Typical Input</h4>
-                    <ul class="list-disc list-inside mb-3 text-sm">
-                        <li><code>narrative.html</code> from Prompt B.</li>
-                        <li><code>performance_table.html</code> and <code>performance_chart.svg</code> from Prompt C.</li>
-                        <li><code>seo.json</code> and a small set of site-wide design constraints.</li>
-                    </ul>
-                    <h4 class="font-semibold mb-1 text-sm tracking-tighter uppercase">Typical Output</h4>
-                    <ul class="list-disc list-inside mb-0 text-sm">
-                        <li>A complete weekly HTML post (e.g., <code>GenAi-Managed-Stocks-Portfolio-Week-5.html</code>)
-                            with a standardized head, article structure, and content blocks in the right order.</li>
-                    </ul>
-                    </div>
-                </details>
+                        <h3 class="text-xl font-semibold mt-6 mb-3">Visualization & Analytics</h3>
+                        <div class="docs-chips-row">
+                            <span class="docs-chip">📊 SVG Charts</span>
+                            <span class="docs-chip">📐 Python Chart Generation</span>
+                            <span class="docs-chip">📈 Normalized Performance</span>
+                            <span class="docs-chip">🎯 Interactive Tables</span>
+                            <span class="docs-chip">🔢 Real-Time Metrics</span>
+                        </div>
+                        <p class="text-gray-400 text-sm mt-3">
+                            Deterministic visual generation using Python eliminates AI unpredictability. SVG charts scale perfectly 
+                            across devices. Performance tables with responsive breakpoints ensure readability on all screens. 
+                            Custom CSS classes maintain visual consistency.
+                        </p>
 
-                <p class="text-gray-400 text-sm">
-                    For implementation details, see the automation script at <code>scripts/portfolio_automation.py</code>,
-                    which orchestrates Prompts A–D and writes the generated artifacts into the <code>Data/</code> and
-                    <code>Posts/</code> directories.
-                </p>
-            </section>
-        </article>
+                        <h3 class="text-xl font-semibold mt-6 mb-3">Development & Deployment</h3>
+                        <div class="docs-chips-row">
+                            <span class="docs-chip">🔧 VS Code + Copilot</span>
+                            <span class="docs-chip">🐙 GitHub Actions (Future)</span>
+                            <span class="docs-chip">🌐 GitHub Pages</span>
+                            <span class="docs-chip">🔐 Environment Variables</span>
+                            <span class="docs-chip">📝 Markdown Prompts</span>
+                            <span class="docs-chip">🧪 Validation Pipeline</span>
+                        </div>
+                        <p class="text-gray-400 text-sm mt-3">
+                            Modular prompt architecture (A: Validator, B: Narrative, D: Assembler) enables AI specialization. 
+                            Error handling strategy distinguishes fatal (data fetch) vs non-fatal (validation) failures. 
+                            Retry logic with exponential backoff handles API rate limits gracefully.
+                        </p>
+                    </div>
+                </section>
+
+                <!-- Automation Workflow Section -->
+                <section id="automation" class="docs-section-card">
+                    <h2>
+                        Automation Workflow
+                        <span class="docs-section-pill">
+                            <div class="docs-section-pill-dot"></div>
+                            AI Pipeline
+                        </span>
+                    </h2>
+                    <div class="docs-section-body">
+                        <p class="text-gray-400 mb-4">
+                            A sophisticated 5-stage pipeline that autonomously transforms raw market data into 
+                            publication-ready weekly performance reports with AI-generated narratives.
+                        </p>
+                        
+                        <h3 class="text-xl font-semibold mt-6 mb-3">Stage 1: Data Acquisition</h3>
+                        <div class="docs-chips-row">
+                            <span class="docs-chip">📊 Alpha Vantage API</span>
+                            <span class="docs-chip">🔗 Finnhub API</span>
+                            <span class="docs-chip">📈 Marketstack API</span>
+                            <span class="docs-chip">🔄 Retry Logic (3x)</span>
+                            <span class="docs-chip">⏱️ Rate Limiting</span>
+                        </div>
+                        <p class="text-gray-400 text-sm mt-3">
+                            Fetch current prices from Alpha Vantage (primary), with automatic fallback to Finnhub and Marketstack. 
+                            Rate limiting enforced (12s between Alpha Vantage calls). Retry logic with exponential backoff handles 
+                            transient network errors. Updates <code>master.json</code> with new price entries for all portfolio stocks and benchmarks.
+                        </p>
+
+                        <h3 class="text-xl font-semibold mt-6 mb-3">Stage 2: Metrics Calculation</h3>
+                        <div class="docs-chips-row">
+                            <span class="docs-chip">🧮 Deterministic Math</span>
+                            <span class="docs-chip">❌ Zero AI</span>
+                            <span class="docs-chip">💾 Atomic Saves</span>
+                            <span class="docs-chip">📊 Normalized Charts</span>
+                            <span class="docs-chip">📈 Portfolio History</span>
+                        </div>
+                        <p class="text-gray-400 text-sm mt-3">
+                            Calculate weekly and total percentage changes for all stocks, portfolio totals, and benchmarks using pure Python. 
+                            Generate normalized chart data (base 100 at inception) for visual comparison. Update portfolio history with new 
+                            weekly entry. All calculations deterministic with no AI involvement for accuracy and reproducibility.
+                        </p>
+
+                        <h3 class="text-xl font-semibold mt-6 mb-3">Stage 3: Validation (Prompt A)</h3>
+                        <div class="docs-chips-row">
+                            <span class="docs-chip">🤖 GPT-4.1</span>
+                            <span class="docs-chip">🌡️ Temperature: 0.3</span>
+                            <span class="docs-chip">✅ Non-Fatal</span>
+                            <span class="docs-chip">📝 Validation Report</span>
+                            <span class="docs-chip">🔍 Cross-Check</span>
+                        </div>
+                        <p class="text-gray-400 text-sm mt-3">
+                            AI agent validates mathematical correctness of all calculations: weekly/total returns, portfolio totals, 
+                            benchmark comparisons. Cross-checks against previous week's data for consistency. Generates PASS/FAIL 
+                            validation report.
+                        </p>
+
+                        <h3 class="text-xl font-semibold mt-6 mb-3">Stage 4: Visual Generation</h3>
+                        <div class="docs-chips-row">
+                            <span class="docs-chip">🐍 Python Direct</span>
+                            <span class="docs-chip">📊 SVG Charts</span>
+                            <span class="docs-chip">📋 HTML Tables</span>
+                            <span class="docs-chip">📱 Responsive CSS</span>
+                            <span class="docs-chip">🎯 Pixel-Perfect</span>
+                        </div>
+                        <p class="text-gray-400 text-sm mt-3">
+                            Python generates performance table (HTML) and normalized line chart (SVG) deterministically from 
+                            <code>master.json</code> metrics. SVG charts scale perfectly across devices. Performance tables include responsive breakpoints for mobile/tablet/desktop.
+                        </p>
+
+                        <h3 class="text-xl font-semibold mt-6 mb-3">Stage 5A: Narrative (Prompt B)</h3>
+                        <div class="docs-chips-row">
+                            <span class="docs-chip">🤖 GPT-4.1</span>
+                            <span class="docs-chip">🌡️ Temperature: 0.7</span>
+                            <span class="docs-chip">📝 Prose Content</span>
+                            <span class="docs-chip">🔍 SEO Metadata</span>
+                            <span class="docs-chip">🎯 ~3000 tokens</span>
+                        </div>
+                        <p class="text-gray-400 text-sm mt-3">
+                            AI generates weekly narrative analyzing performance, top winners/losers, risk factors, and outlook. 
+                            Also creates SEO metadata (title, description, Open Graph tags). Token optimization extracts minimal 
+                            data summary (~75% reduction) to stay under limits.
+                        </p>
+
+                        <h3 class="text-xl font-semibold mt-6 mb-3">Stage 5B: Assembly (Prompt D)</h3>
+                        <div class="docs-chips-row">
+                            <span class="docs-chip">🤖 GPT-4.1</span>
+                            <span class="docs-chip">🌡️ Temperature: 0.7</span>
+                            <span class="docs-chip">🔒 Hardened CSP</span>
+                            <span class="docs-chip">🎨 Template Injection</span>
+                            <span class="docs-chip">📊 Visual Embedding</span>
+                        </div>
+                        <p class="text-gray-400 text-sm mt-3">
+                            AI assembles complete HTML page combining narrative, performance table, normalized chart, and SEO metadata. 
+                            Applies security headers (CSP with nonce), injects TLDR strip, links header/footer templates.
+                        </p>
+                    </div>
+                </section>
+
+                <!-- Methodology Section -->
+                <section id="methodology" class="docs-section-card">
+                    <h2>
+                        Methodology & Best Practices
+                        <span class="docs-section-pill">
+                            <div class="docs-section-pill-dot"></div>
+                            Development Approach
+                        </span>
+                    </h2>
+                    <div class="docs-section-body">
+                        <p class="text-gray-400 mb-4">
+                            This project follows industry best practices for AI-assisted development, security, 
+                            accessibility, and responsible automation.
+                        </p>
+
+                        <h3 class="text-xl font-semibold mt-6 mb-3">AI & Prompt Engineering</h3>
+                        <div class="docs-chips-row">
+                            <span class="docs-chip">🤖 Modular Prompts</span>
+                            <span class="docs-chip">🌡️ Temperature Tuning</span>
+                            <span class="docs-chip">🎯 Token Optimization</span>
+                            <span class="docs-chip">🔄 Fallback Chains</span>
+                            <span class="docs-chip">📊 Deterministic Visuals</span>
+                        </div>
+                        <p class="text-gray-400 text-sm mt-3">
+                            Specialized prompts (A: Validation, B: Narrative, D: Assembly) enable focused AI behavior. Temperature tuning: 
+                            0.3 for validation consistency, 0.7 for creative narrative. Token optimization extracts minimal data summaries 
+                            (~75% reduction). Visual generation moved from AI to Python for pixel-perfect consistency. Fallback chains handle 
+                            AI failures gracefully (SEO generation) and API cascades (Alpha Vantage → Finnhub → Marketstack).
+                        </p>
+
+                        <h3 class="text-xl font-semibold mt-6 mb-3">Security & Privacy</h3>
+                        <div class="docs-chips-row">
+                            <span class="docs-chip">🔒 CSP Headers</span>
+                            <span class="docs-chip">🔐 Environment Variables</span>
+                            <span class="docs-chip">🔒 HTTPS Enforcement</span>
+                            <span class="docs-chip">🛡️ Minimal Data Exposure</span>
+                            <span class="docs-chip">🔍 Dependency Scanning</span>
+                        </div>
+                        <p class="text-gray-400 text-sm mt-3">
+                            Strict CSP headers with nonce-based script execution prevent XSS attacks while allowing CDN resources. 
+                            All API keys stored in environment variables, never committed to Git. Only essential metrics sent to AI; 
+                            no PII or sensitive account details. GitHub Pages provides free SSL; all external resources loaded over HTTPS. 
+                            Regular updates to Python packages; minimal dependency footprint reduces attack surface.
+                        </p>
+
+                        <h3 class="text-xl font-semibold mt-6 mb-3">Performance Optimization</h3>
+                        <div class="docs-chips-row">
+                            <span class="docs-chip">⚡ Static Site Generation</span>
+                            <span class="docs-chip">🖼️ Lazy Loading</span>
+                            <span class="docs-chip">🎨 CSS Optimization</span>
+                            <span class="docs-chip">📜 Deferred Scripts</span>
+                            <span class="docs-chip">🌐 CDN Delivery</span>
+                        </div>
+                        <p class="text-gray-400 text-sm mt-3">
+                            No server-side processing; sub-100ms Time to First Byte (TTFB). Images below fold loaded on-demand. Single stylesheet with utility classes 
+                            avoids duplication; no unused CSS in critical path. All scripts deferred or async; no render-blocking JS. 
+                            WebP images provide 25-35% smaller file sizes vs JPEG/PNG. GitHub Pages served via CDN with global edge locations.
+                        </p>
+
+                        <h3 class="text-xl font-semibold mt-6 mb-3">Development Practices</h3>
+                        <div class="docs-chips-row">
+                            <span class="docs-chip">📂 Version Control</span>
+                            <span class="docs-chip">🤖 AI-Assisted Review</span>
+                            <span class="docs-chip">📝 Documentation</span>
+                            <span class="docs-chip">📊 Error Logging</span>
+                        </div>
+                        <p class="text-gray-400 text-sm mt-3">
+                            Git tracks every change with meaningful commit messages and atomic commits for easy rollback. 
+                            GitHub Copilot catches bugs and suggests improvements during development. Re-running automation with same inputs produces identical outputs (except AI temperature variations). 
+                            File writes use temp files + atomic rename to prevent corruption on failure.
+                        </p>
+
+                        <h3 class="text-xl font-semibold mt-6 mb-3">Continuous Improvement</h3>
+                        <div class="docs-chips-row">
+                            <span class="docs-chip">🔄 Iterative Refinement</span>
+                            <span class="docs-chip">📊 Performance Monitoring</span>
+                            <span class="docs-chip">🔧 Dependency Updates</span>
+                            <span class="docs-chip">📈 User Feedback</span>
+                            <span class="docs-chip">🧪 A/B Testing</span>
+                        </div>
+                        <p class="text-gray-400 text-sm mt-3">
+                            Prompt engineering improved through A/B testing and user feedback. Weekly review of automation execution time, 
+                            API costs, and token usage trends. Monthly check for security patches and feature improvements. 
+                            Analytics track page views, bounce rates, and engagement; insights inform UX improvements. 
+                            Continuous iteration on all aspects of the system based on real-world performance data.
+                        </p>
+                    </div>
+                </section>
+
+            </div>
+
+            <!-- Right Column: Quick Navigation -->
+            <div>
+                <div class="docs-sticky-nav">
+                    <div class="docs-sticky-nav-title">On This Page</div>
+                    <ul class="docs-sticky-nav-list">
+                        <li>
+                            <a href="#tech-stack" class="docs-sticky-nav-link">
+                                <span>Tech Stack</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#automation" class="docs-sticky-nav-link">
+                                <span>Automation Workflow</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#methodology" class="docs-sticky-nav-link">
+                                <span>Methodology</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+        </div>
+
     </main>
 
     <!-- Footer -->

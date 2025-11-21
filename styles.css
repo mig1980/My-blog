@@ -1693,6 +1693,10 @@ body[data-theme="alt"] .tldr-error { color:#f87171; }
   gap: 0.55rem;
 }
 
+.docs-section-card .text-gray-400:hover {
+  color: var(--text-gray-400);
+}
+
 .docs-section-tag {
   font-size: 0.7rem;
   text-transform: uppercase;
