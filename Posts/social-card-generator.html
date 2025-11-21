@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#000000">
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
   <meta http-equiv="X-Frame-Options" content="SAMEORIGIN">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'nonce-qi123' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-src 'none'; base-uri 'self'; form-action 'self';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'nonce-qi123'; style-src 'self' 'nonce-qi123'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-src 'none'; base-uri 'self'; form-action 'self';">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="robots" content="noindex, nofollow">
   <link rel="canonical" href="https://quantuminvestor.net/Posts/social-card-generator.html" />
@@ -17,7 +17,7 @@
   <link rel="stylesheet" href="../styles.css" />
   <script src="../js/template-loader.js" defer nonce="qi123"></script>
   <script src="../js/mobile-menu.js" defer nonce="qi123"></script>
-  <style>
+  <style nonce="qi123">
     body { font-family: system-ui, sans-serif; }
     
     .pixabay-hero {
@@ -81,25 +81,61 @@
       max-width: 100%;
     }
     
-    .control-panel { background:#0c0c0c; border:1px solid #222; padding:1.5rem; border-radius:.75rem; margin-bottom:2rem; }
+    .control-panel { background:var(--bg-gray-900); border:1px solid var(--border-gray-800); padding:1.5rem; border-radius:.75rem; margin-bottom:2rem; box-shadow:0 12px 28px rgba(2,6,23,.55); }
     .control-row { display:flex; gap:1rem; align-items:center; margin-bottom:1rem; flex-wrap:wrap; }
     .control-row label { font-size:0.95rem; font-weight:600; color:var(--text-white); min-width:120px; }
-    .control-row select, .control-row input { background:#161616; border:1px solid #333; padding:.6rem 1rem; border-radius:.5rem; color:#fff; font-size:.9rem; }
-    .control-row button { background:#7e5bef; border:none; padding:.7rem 1.5rem; border-radius:.5rem; cursor:pointer; font-weight:600; transition:all .2s; }
-    .control-row button:hover { background:#9575ff; transform:translateY(-1px); }
-    .control-row button:disabled { opacity:.4; cursor:not-allowed; }
+    .control-row select { background:#161616; border:1px solid #333; padding:.6rem 1rem; border-radius:.5rem; color:#fff; font-size:.9rem; }
     
     .platform-tabs { display:flex; gap:.75rem; margin-bottom:1.5rem; }
-    .platform-tab { background:#181818; border:1px solid #282828; padding:.6rem 1.5rem; border-radius:.5rem; cursor:pointer; transition:all .2s; font-size:.9rem; }
-    .platform-tab.active { background:#7e5bef; border-color:#9575ff; }
+    .platform-tabs[role="tablist"] { border-bottom:1px solid var(--border-gray-800); padding-bottom:.5rem; }
+    .platform-tab { background:var(--bg-gray-800); border:1px solid var(--border-gray-800); padding:.6rem 1.25rem; border-radius:.5rem; cursor:pointer; transition:all .2s; font-size:.85rem; letter-spacing:.05em; display:flex; align-items:center; }
+    .platform-tab[aria-selected="true"] { background:var(--primary); border-color:#9575ff; color:#fff; }
+    .platform-tab:focus { outline:2px solid var(--primary); outline-offset:2px; }
     
     .cards-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(400px, 1fr)); gap:1.5rem; margin-bottom:2rem; }
     .card-wrapper { background:#0f0f0f; border:1px solid #252525; border-radius:.75rem; padding:1.25rem; }
     .card-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; }
     .card-title { font-size:.85rem; font-weight:600; color:#aaa; text-transform:uppercase; letter-spacing:.05em; }
     .card-actions { display:flex; gap:.5rem; }
-    .card-actions button { background:#1a1a1a; border:1px solid #333; padding:.4rem .8rem; font-size:.7rem; border-radius:.4rem; cursor:pointer; transition:all .2s; }
-    .card-actions button:hover { background:#252525; border-color:#444; }
+    /* Shared action button styles (abstracted from previous inline styles) */
+    .action-btn {
+      background:var(--btn-bg, #1a1a1a);
+      border:1px solid var(--btn-border, #333);
+      padding:.5rem .85rem;
+      border-radius:.5rem;
+      font-size:.72rem;
+      font-weight:600;
+      letter-spacing:.04em;
+      color:var(--btn-fg, #e5e5e5);
+      cursor:pointer;
+      display:inline-flex;
+      align-items:center;
+      gap:.35rem;
+      text-decoration:none;
+      user-select:none;
+    }
+    .action-btn--primary {
+      background:var(--btn-primary-bg, #7e5bef);
+      border:none;
+      padding:.6rem 1.1rem;
+      border-radius:.5rem;
+      font-weight:600;
+      font-size:.9rem;
+      color:var(--btn-primary-fg, #fff);
+      letter-spacing:.03em;
+      cursor:pointer;
+      min-height:2.5rem;
+    }
+    .action-btn:focus-visible, .action-btn--primary:focus-visible {
+      outline:2px solid var(--primary);
+      outline-offset:2px;
+    }
+    .action-btn:disabled, .action-btn[aria-disabled="true"],
+    .action-btn--primary:disabled, .action-btn--primary[aria-disabled="true"] {
+      opacity:.45;
+      cursor:not-allowed;
+    }
+    .visually-hidden { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; }
     
     /* Card Canvas Containers */
     .card-canvas-wrapper { position:relative; border-radius:.5rem; overflow:hidden; box-shadow:0 4px 12px rgba(0,0,0,.3); }
@@ -157,8 +193,21 @@
     .style-clean .card-branding { color:#999; }
     .style-clean .card-metric-label { color:#666; }
     
-    .info-box { background:#0a0a0a; border:1px solid #222; padding:1rem 1.25rem; border-radius:.5rem; margin-top:2rem; font-size:.85rem; color:#aaa; line-height:1.6; }
-    .info-box strong { color:#fff; }
+    .info-box { background:var(--bg-gray-900); border:1px solid var(--border-gray-800); padding:1rem 1.25rem; border-radius:.75rem; margin-top:2rem; font-size:.85rem; color:var(--text-gray-400); line-height:1.6; }
+    .info-box strong { color:var(--text-white); }
+    .info-box ol { margin:.5rem 0 0 1.1rem; padding:0; }
+    .info-box ol li { margin:.25rem 0; padding-left:.25rem; }
+    /* Password gate styles extracted from inline */
+    #password-gate-overlay { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.9); z-index:9999; }
+    .password-gate-form { background:var(--gate-bg,#111); padding:2rem; border:1px solid var(--gate-border,#333); border-radius:.75rem; max-width:320px; width:100%; font-family:system-ui; }
+    .password-gate-form h2 { margin:0 0 1rem; font-size:1.2rem; color:#fff; }
+    .password-gate-form p { font-size:.75rem; color:#999; line-height:1.3; margin:0 0 1rem; }
+    .password-gate-input { width:100%; padding:.6rem .8rem; background:var(--gate-input-bg,#1a1a1a); border:1px solid var(--gate-input-border,#333); border-radius:.5rem; color:var(--gate-input-fg,#fff); margin-bottom:1rem; }
+    .password-gate-submit { width:100%; background:var(--btn-primary-bg,#7e5bef); border:none; padding:.6rem 1rem; border-radius:.5rem; font-weight:600; cursor:pointer; color:var(--btn-primary-fg,#fff); }
+    #password-gate-error { color:#f87171; font-size:.7rem; margin-top:.75rem; display:none; }
+    /* Status message styles */
+    .loading-msg { display:none; color:#7e5bef; font-size:.85rem; }
+    .error-msg { display:none; color:#f87171; font-size:.85rem; }
     
     @media (max-width:768px) {
       .cards-grid { grid-template-columns:1fr; }
@@ -169,13 +218,13 @@
 <body class="bg-black text-white" data-theme="default">
   <a href="#main-content" class="skip-link">Skip to main content</a>
   
-  <div id="password-gate-overlay" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.9);z-index:9999;">
-    <form id="password-gate-form" style="background:#111;padding:2rem;border:1px solid #333;border-radius:.75rem;max-width:320px;width:100%;font-family:system-ui;">
-      <h2 style="margin:0 0 1rem;font-size:1.2rem;color:#fff;">Protected Page</h2>
-      <p style="font-size:.75rem;color:#999;line-height:1.3;margin:0 0 1rem;">Enter password to view content.</p>
-      <input type="password" id="password-gate-input" placeholder="Password" style="width:100%;padding:.6rem .8rem;background:#1a1a1a;border:1px solid #333;border-radius:.5rem;color:#fff;margin-bottom:1rem;" />
-      <button type="submit" style="width:100%;background:#7e5bef;border:none;padding:.6rem 1rem;border-radius:.5rem;font-weight:600;cursor:pointer;">Unlock</button>
-      <div id="password-gate-error" style="color:#f87171;font-size:.7rem;margin-top:.75rem;display:none;"></div>
+  <div id="password-gate-overlay">
+    <form id="password-gate-form" class="password-gate-form">
+      <h2>Protected Page</h2>
+      <p>Enter password to view content.</p>
+      <input type="password" id="password-gate-input" class="password-gate-input" placeholder="Password" />
+      <button type="submit" class="password-gate-submit">Unlock</button>
+      <div id="password-gate-error"></div>
     </form>
   </div>
   <div data-template="header" data-root-path="../"></div>
@@ -198,30 +247,34 @@
         <select id="weekSelect">
           <option value="">-- Choose Week --</option>
         </select>
-        <button id="generateBtn" disabled>Generate Cards</button>
+        <button id="generateBtn" type="button" disabled aria-disabled="true" class="action-btn action-btn--primary">Generate Cards</button>
       </div>
-      <div id="loadingMsg" style="display:none; color:#7e5bef; font-size:.85rem;">Loading data...</div>
-      <div id="errorMsg" style="display:none; color:#f87171; font-size:.85rem;"></div>
+      <div id="loadingMsg" role="status" aria-live="polite" class="loading-msg">Loading data...</div>
+      <div id="errorMsg" role="alert" aria-live="assertive" class="error-msg"></div>
+      <div id="generationStatus" class="visually-hidden" aria-live="polite"></div>
     </div>
     
     <!-- Platform Tabs -->
-    <div class="platform-tabs">
-      <div class="platform-tab active" data-platform="twitter">Twitter (1200×675)</div>
-      <div class="platform-tab" data-platform="linkedin">LinkedIn (1200×627)</div>
+    <div class="platform-tabs" role="tablist" aria-label="Card platform selection">
+      <div class="platform-tab active" role="tab" aria-selected="true" tabindex="0" data-platform="twitter">Twitter (1200×675)</div>
+      <div class="platform-tab" role="tab" aria-selected="false" tabindex="-1" data-platform="linkedin">LinkedIn (1200×627)</div>
     </div>
     
     <!-- Cards Grid -->
-    <div id="cardsContainer" class="cards-grid"></div>
+    <div id="cardsContainer" class="cards-grid" role="region" aria-label="Generated social media cards"></div>
     
     <!-- Info Box -->
     <div class="info-box">
-      <strong>How to use:</strong><br>
-      1. Select a week from the dropdown<br>
-      2. Click "Generate Cards" to create preview cards<br>
-      3. Switch between Twitter and LinkedIn formats using tabs<br>
-      4. Download individual cards as PNG images (right-click → Save Image)<br>
-      5. Copy card HTML to integrate elsewhere<br><br>
-      <strong>Card Styles:</strong> Each platform generates 3 design variations (Minimal, Vibrant, Clean) optimized for social media engagement.
+      <strong>How to use:</strong>
+      <ol>
+        <li>Select a week from the dropdown</li>
+        <li>Click "Generate Cards" to create preview cards</li>
+        <li>Switch between Twitter and LinkedIn tabs</li>
+        <li>Download individual cards as PNG (right-click → Save Image)</li>
+        <li>Copy card HTML to integrate elsewhere</li>
+      </ol>
+      <br>
+      <strong>Card Styles:</strong> Each platform provides 3 variations (Minimal, Vibrant, Clean) tuned for engagement.
     </div>
   </main>
   <div data-template="footer" data-root-path="../"></div>
@@ -278,8 +331,10 @@
     
     weekSelect.addEventListener('change', async (e) => {
       const week = parseInt(e.target.value);
+      const btn = document.getElementById('generateBtn');
       if (!week) {
-        document.getElementById('generateBtn').disabled = true;
+        btn.disabled = true;
+        btn.setAttribute('aria-disabled', 'true');
         return;
       }
       
@@ -296,223 +351,201 @@
         // Build week data structure
         weekData = {
           weekNumber: week,
-          meta: masterData.meta,
           portfolio_history: masterData.portfolio_history.slice(0, weekIndex + 1),
           benchmarks: {
-            sp500: {
-              ...masterData.benchmarks.sp500,
-              history: masterData.benchmarks.sp500.history.slice(0, weekIndex + 1)
-            },
-            bitcoin: {
-              ...masterData.benchmarks.bitcoin,
-              history: masterData.benchmarks.bitcoin.history.slice(0, weekIndex + 1)
-            }
-          },
-          stocks: masterData.stocks.map(stock => {
-            const priceAtWeek = stock.prices[date];
-            const priceAtInception = stock.prices[masterData.meta.inception_date];
-            
-            let weekly_pct = null;
-            if (weekIndex > 0) {
-              const prevDate = masterData.portfolio_history[weekIndex - 1].date;
-              const prevPrice = stock.prices[prevDate];
-              if (prevPrice && priceAtWeek) {
-                weekly_pct = ((priceAtWeek - prevPrice) / prevPrice) * 100;
-              }
-            }
-            
-            const total_pct = priceAtInception && priceAtWeek 
-              ? ((priceAtWeek - priceAtInception) / priceAtInception) * 100 
-              : 0;
-            
-            return {
-              ...stock,
-              current_value: priceAtWeek ? stock.shares * priceAtWeek : 0,
-              weekly_pct: weekly_pct,
-              total_pct: total_pct
-            };
-          }),
-          portfolio_totals: {
-            current_value: portfolioEntry.value,
-            weekly_pct: portfolioEntry.weekly_pct,
-            total_pct: portfolioEntry.total_pct
+            sp500: masterData.benchmarks.sp500
           }
         };
         
-        document.getElementById('generateBtn').disabled = false;
+        btn.disabled = false;
+        btn.setAttribute('aria-disabled', 'false');
         document.getElementById('loadingMsg').style.display = 'none';
       } catch (err) {
         document.getElementById('errorMsg').textContent = `Error loading Week ${week} data: ${err.message}`;
         document.getElementById('errorMsg').style.display = 'block';
         document.getElementById('loadingMsg').style.display = 'none';
-        document.getElementById('generateBtn').disabled = true;
+        btn.disabled = true;
+        btn.setAttribute('aria-disabled', 'true');
       }
     });
     
     document.getElementById('generateBtn').addEventListener('click', generateCards);
     
-    // Platform tabs
+    // Accessible platform tabs with keyboard support
     document.querySelectorAll('.platform-tab').forEach(tab => {
-      tab.addEventListener('click', () => {
-        document.querySelectorAll('.platform-tab').forEach(t => t.classList.remove('active'));
-        tab.classList.add('active');
-        currentPlatform = tab.dataset.platform;
-        if (weekData) generateCards();
+      tab.addEventListener('click', () => switchPlatform(tab));
+      tab.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); switchPlatform(tab); }
+        if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+          const tabs = Array.from(document.querySelectorAll('.platform-tab'));
+          const idx = tabs.indexOf(tab);
+          const next = e.key === 'ArrowRight' ? (idx + 1) % tabs.length : (idx - 1 + tabs.length) % tabs.length;
+          tabs[next].focus();
+        }
       });
     });
   }
+  function switchPlatform(tab){
+    document.querySelectorAll('.platform-tab').forEach(t => {
+      t.classList.remove('active');
+      t.setAttribute('aria-selected','false');
+      t.setAttribute('tabindex','-1');
+    });
+    tab.classList.add('active');
+    tab.setAttribute('aria-selected','true');
+    tab.setAttribute('tabindex','0');
+    currentPlatform = tab.dataset.platform;
+    // Only regenerate if cards were already generated (container has content)
+    if (weekData && document.getElementById('cardsContainer').children.length > 0) {
+      generateCards();
+    }
+  }
   
+  function buildCardElement(style, idx, metrics) {
+    const { totalPct, weeklyPct, alpha, sparkData } = metrics;
+    const wrapper = document.createElement('div');
+    wrapper.className = 'card-wrapper';
+    const header = document.createElement('div');
+    header.className = 'card-header';
+    const title = document.createElement('div');
+    const titleId = `card-title-${currentPlatform}-${idx}`;
+    title.id = titleId;
+    title.className = 'card-title';
+    title.textContent = `Option ${idx + 1}: ${style.name}`;
+    const actions = document.createElement('div');
+    actions.className = 'card-actions';
+    const downloadBtn = document.createElement('button');
+    downloadBtn.type = 'button';
+    downloadBtn.className = 'action-btn';
+    downloadBtn.setAttribute('aria-label', `Download card option ${idx + 1} as PNG`);
+    downloadBtn.textContent = 'Download PNG';
+    downloadBtn.addEventListener('click', () => {
+      window.downloadCard(`card-${currentPlatform}-${idx}`, `GenAi-Portfolio-Week${weekData.weekNumber}-${currentPlatform}-${style.id}.png`);
+    });
+    const copyBtn = document.createElement('button');
+    copyBtn.type = 'button';
+    copyBtn.className = 'action-btn';
+    copyBtn.setAttribute('aria-label', `Copy HTML markup for card option ${idx + 1}`);
+    copyBtn.textContent = 'Copy HTML';
+    copyBtn.addEventListener('click', () => {
+      window.copyCardHTML(`card-${currentPlatform}-${idx}`);
+    });
+    actions.appendChild(downloadBtn);
+    actions.appendChild(copyBtn);
+    header.appendChild(title);
+    header.appendChild(actions);
+    wrapper.appendChild(header);
+    wrapper.setAttribute('role','group');
+    wrapper.setAttribute('aria-labelledby', titleId);
+    const canvasWrapper = document.createElement('div');
+    canvasWrapper.className = 'card-canvas-wrapper';
+    const card = document.createElement('div');
+    card.id = `card-${currentPlatform}-${idx}`;
+    card.className = currentPlatform === 'twitter' ? 'twitter-card' : 'linkedin-card';
+    card.classList.add(style.class);
+    const headline = totalPct >= 0 ? `Portfolio Up ${totalPct.toFixed(2)}% Since Inception` : `Portfolio Performance: ${totalPct.toFixed(2)}%`;
+    const headerText = document.createElement('div');
+    headerText.className = 'card-header-text';
+    const weekEl = document.createElement('div');
+    weekEl.className = 'card-week';
+    weekEl.textContent = `Week ${weekData.weekNumber} Update`;
+    const headlineEl = document.createElement('div');
+    headlineEl.className = 'card-headline';
+    headlineEl.textContent = headline;
+    const metricsWrap = document.createElement('div');
+    metricsWrap.className = 'card-metrics';
+    function addMetric(label, value, isPositive){
+      const m = document.createElement('div');
+      m.className = 'card-metric';
+      const ml = document.createElement('div'); ml.className = 'card-metric-label'; ml.textContent = label;
+      const mv = document.createElement('div'); mv.className = 'card-metric-value ' + (isPositive ? 'positive':'negative'); mv.textContent = `${value >=0?'+':''}${value.toFixed(2)}%`;
+      m.appendChild(ml); m.appendChild(mv); metricsWrap.appendChild(m);
+    }
+    addMetric('Weekly', weeklyPct, weeklyPct>=0);
+    addMetric('Alpha vs SPX', alpha, alpha>=0);
+    headerText.appendChild(weekEl);
+    headerText.appendChild(headlineEl);
+    headerText.appendChild(metricsWrap);
+    const chartWrap = document.createElement('div');
+    chartWrap.className = 'card-chart';
+    const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+    svg.setAttribute('viewBox','0 0 250 100');
+    svg.innerHTML = generateSparklinePath(sparkData);
+    chartWrap.appendChild(svg);
+    const footer = document.createElement('div');
+    footer.className = 'card-footer';
+    const branding = document.createElement('div'); branding.className='card-branding'; branding.textContent='quantuminvestor.net';
+    const logo = document.createElement('div'); logo.className='card-logo'; logo.textContent='Q';
+    footer.appendChild(branding); footer.appendChild(logo);
+    card.appendChild(headerText);
+    card.appendChild(chartWrap);
+    card.appendChild(footer);
+    canvasWrapper.appendChild(card);
+    wrapper.appendChild(canvasWrapper);
+    return wrapper;
+  }
+
   function generateCards() {
     if (!weekData) return;
-    
     const container = document.getElementById('cardsContainer');
-    container.innerHTML = '';
-    
+    container.innerHTML='';
     const styles = cardStyles[currentPlatform];
     const portfolio = weekData.portfolio_history;
     const latest = portfolio[portfolio.length - 1];
     const spx = weekData.benchmarks.sp500.history[weekData.benchmarks.sp500.history.length - 1];
-    
     const weeklyPct = latest.weekly_pct !== null ? latest.weekly_pct : 0;
     const totalPct = latest.total_pct;
     const alpha = totalPct - spx.total_pct;
-    
-    // Generate mini sparkline data
     const sparkData = portfolio.map(p => p.total_pct);
-    
+    const metrics = { totalPct, weeklyPct, alpha, sparkData };
     styles.forEach((style, idx) => {
-      const wrapper = document.createElement('div');
-      wrapper.className = 'card-wrapper';
-      
-      const header = document.createElement('div');
-      header.className = 'card-header';
-      header.innerHTML = `
-        <div class="card-title">Option ${idx + 1}: ${style.name}</div>
-        <div class="card-actions">
-          <button onclick="downloadCard('card-${currentPlatform}-${idx}', 'GenAi-Portfolio-Week${weekData.weekNumber}-${currentPlatform}-${style.id}.png')">Download PNG</button>
-          <button onclick="copyCardHTML('card-${currentPlatform}-${idx}')">Copy HTML</button>
-        </div>
-      `;
-      
-      const canvasWrapper = document.createElement('div');
-      canvasWrapper.className = 'card-canvas-wrapper';
-      
-      const card = document.createElement('div');
-      card.id = `card-${currentPlatform}-${idx}`;
-      card.className = currentPlatform === 'twitter' ? 'twitter-card' : 'linkedin-card';
-      card.classList.add(style.class);
-      
-      // Card content
-      const headline = totalPct >= 0 ? 
-        `Portfolio Up ${totalPct.toFixed(2)}% Since Inception` :
-        `Portfolio Performance: ${totalPct.toFixed(2)}%`;
-      
-      card.innerHTML = `
-        <div class="card-header-text">
-          <div class="card-week">Week ${weekData.weekNumber} Update</div>
-          <div class="card-headline">${headline}</div>
-          <div class="card-metrics">
-            <div class="card-metric">
-              <div class="card-metric-label">Weekly</div>
-              <div class="card-metric-value ${weeklyPct >= 0 ? 'positive' : 'negative'}">${weeklyPct >= 0 ? '+' : ''}${weeklyPct.toFixed(2)}%</div>
-            </div>
-            <div class="card-metric">
-              <div class="card-metric-label">Alpha vs SPX</div>
-              <div class="card-metric-value ${alpha >= 0 ? 'positive' : 'negative'}">${alpha >= 0 ? '+' : ''}${alpha.toFixed(2)}%</div>
-            </div>
-          </div>
-        </div>
-        
-        <div class="card-chart">
-          <svg viewBox="0 0 250 100" xmlns="http://www.w3.org/2000/svg">
-            ${generateSparklinePath(sparkData)}
-          </svg>
-        </div>
-        
-        <div class="card-footer">
-          <div class="card-branding">quantuminvestor.net</div>
-          <div class="card-logo">Q</div>
-        </div>
-      `;
-      
-      canvasWrapper.appendChild(card);
-      wrapper.appendChild(header);
-      wrapper.appendChild(canvasWrapper);
-      container.appendChild(wrapper);
+      container.appendChild(buildCardElement(style, idx, metrics));
     });
+    const statusEl = document.getElementById('generationStatus');
+    if (statusEl) statusEl.textContent = `${styles.length} card variation${styles.length>1?'s':''} generated for ${currentPlatform} platform.`;
   }
   
   function generateSparklinePath(data) {
-    if (data.length === 0) return '';
-    
+    if (!data.length) return '';
     const min = Math.min(...data);
     const max = Math.max(...data);
     const range = max - min || 1;
-    
-    let path = '';
-    data.forEach((val, i) => {
-      const x = (i / (data.length - 1)) * 250;
-      const y = 100 - ((val - min) / range) * 80 - 10; // 10px padding
-      path += (i === 0 ? 'M' : 'L') + x.toFixed(2) + ',' + y.toFixed(2) + ' ';
-    });
-    
-    return `<path d="${path.trim()}" fill="none" stroke="#7e5bef" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>`;
+    const path = data.map((val, i, arr) => {
+      const x = (i / (arr.length - 1)) * 250;
+      const y = 100 - ((val - min) / range) * 80 - 10; // padding
+      return (i === 0 ? 'M' : 'L') + x.toFixed(2) + ',' + y.toFixed(2);
+    }).join(' ');
+    return `<path d="${path}" fill="none" stroke="#7e5bef" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>`;
   }
-  
-  // Global functions for buttons
-  window.downloadCard = async function(cardId, filename) {
-    const card = document.getElementById(cardId);
-    if (!card) return;
-    
-    // Use html2canvas library (you'll need to include it)
-    // For now, show instructions
-    alert('To download cards:\n\n1. Right-click on the card\n2. Select "Save Image As..."\n3. Save as PNG\n\nAlternatively, take a screenshot of the card area.\n\nFor automated export, integrate html2canvas or similar library.');
-  };
-  
-  window.copyCardHTML = function(cardId) {
-    const card = document.getElementById(cardId);
-    if (!card) return;
-    
-    const html = card.outerHTML;
-    navigator.clipboard.writeText(html).then(() => {
-      alert('Card HTML copied to clipboard!');
-    }).catch(err => {
-      console.error('Failed to copy:', err);
-      alert('Failed to copy HTML. Check console for details.');
-    });
-  };
   
   init();
 })();
-</script>
 
-<!-- Optional: Include html2canvas for automated PNG export -->
-<!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script> -->
-<!-- 
-<script>
-// Enhanced download function with html2canvas
+// Global functions for buttons (must be outside IIFE for event listener access)
 window.downloadCard = async function(cardId, filename) {
   const card = document.getElementById(cardId);
   if (!card) return;
   
-  const scale = 2; // 2x for high resolution
-  const canvas = await html2canvas(card, {
-    scale: scale,
-    backgroundColor: null,
-    logging: false
-  });
+  // Use html2canvas library (you'll need to include it)
+  // For now, show instructions
+  alert('To download cards:\n\n1. Right-click on the card\n2. Select "Save Image As..."\n3. Save as PNG\n\nAlternatively, take a screenshot of the card area.\n\nFor automated export, integrate html2canvas or similar library.');
+};
+
+window.copyCardHTML = function(cardId) {
+  const card = document.getElementById(cardId);
+  if (!card) return;
   
-  canvas.toBlob(blob => {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
+  const html = card.outerHTML;
+  navigator.clipboard.writeText(html).then(() => {
+    alert('Card HTML copied to clipboard!');
+  }).catch(err => {
+    console.error('Failed to copy:', err);
+    alert('Failed to copy HTML. Check console for details.');
   });
 };
 </script>
--->
+
+
 
 <script src="../js/password-gate.js" data-password-hash="18ae8ef593e3ad19525954a455f81cc50b0b5e6462dc95468eb4d43f9d8ea17d" defer nonce="qi123"></script>
 </body>

@@ -9,13 +9,13 @@
     <meta name="theme-color" content="#000000">
     <meta http-equiv="X-Content-Type-Options" content="nosniff">
     <meta http-equiv="X-Frame-Options" content="SAMEORIGIN">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'nonce-qi123' 'unsafe-inline' https://pixabay.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://pixabay.com https://cdn.pixabay.com; font-src 'self' data:; connect-src 'self' https://pixabay.com; frame-src 'none'; base-uri 'self'; form-action 'self';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'nonce-qi123' https://pixabay.com; style-src 'self' 'nonce-qi123'; img-src 'self' data: https://pixabay.com https://cdn.pixabay.com; font-src 'self' data:; connect-src 'self' https://pixabay.com; frame-src 'none'; base-uri 'self'; form-action 'self';">
     <meta name="referrer" content="strict-origin-when-cross-origin">
     <meta name="robots" content="noindex, nofollow">
     <link rel="canonical" href="https://quantuminvestor.net/pixabay-fetcher.html">
     <link rel="icon" href="Media/favicon.ico" type="image/x-icon">
     <link rel="stylesheet" href="styles.css">
-    <style>
+    <style nonce="qi123">
         body.bg-black {
             min-height: 100vh;
         }
@@ -83,33 +83,6 @@
 
         .pixabay-hero-copy {
             max-width: 100%;
-        }
-
-        .pixabay-checklist {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 0.75rem;
-            margin-top: 1.5rem;
-            list-style: none;
-            padding: 0;
-        }
-
-        .pixabay-checklist li {
-            display: flex;
-            align-items: center;
-            gap: 0.6rem;
-            padding: 0.6rem 0.75rem;
-            border-radius: 0.75rem;
-            background-color: rgba(17, 24, 39, 0.7);
-            border: 1px solid rgba(148, 163, 184, 0.15);
-            font-size: 0.9rem;
-            color: var(--text-gray-400);
-        }
-
-        .pixabay-checklist li::before {
-            content: '+';
-            color: var(--primary);
-            font-weight: 700;
         }
 
         .pixabay-meta {
@@ -351,26 +324,9 @@
             opacity: 0.9;
         }
 
-        .spinner {
-            width: 18px;
-            height: 18px;
-            border: 3px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-            border-top-color: #ffffff;
-            animation: spin 0.9s linear infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
         @media (max-width: 1024px) {
             .pixabay-hero {
                 padding: 2.25rem 2rem;
-            }
-
-            .pixabay-checklist {
-                grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
             }
         }
 
@@ -404,18 +360,27 @@
                 grid-template-columns: 1fr;
             }
         }
+
+        /* Password gate styles (extracted from inline for consistency) */
+        #password-gate-overlay { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.9); z-index:9999; }
+        .password-gate-form { background:var(--gate-bg, var(--bg-gray-900)); padding:2rem; border:1px solid var(--gate-border, var(--border-gray-800)); border-radius:.75rem; max-width:320px; width:100%; font-family:system-ui; }
+        .password-gate-form h2 { margin:0 0 1rem; font-size:1.2rem; color:var(--text-white); }
+        .password-gate-form p { font-size:.75rem; color:var(--text-gray-400); line-height:1.3; margin:0 0 1rem; }
+        .password-gate-input { width:100%; padding:.6rem .8rem; background:var(--gate-input-bg, var(--bg-gray-800)); border:1px solid var(--gate-input-border, var(--border-gray-800)); border-radius:.5rem; color:var(--gate-input-fg, var(--text-white)); margin-bottom:1rem; }
+        .password-gate-submit { width:100%; background:var(--btn-primary-bg, var(--primary)); border:none; padding:.6rem 1rem; border-radius:.5rem; font-weight:600; cursor:pointer; color:var(--btn-primary-fg, #fff); }
+        #password-gate-error { color:#f87171; font-size:.7rem; margin-top:.75rem; display:none; }
     </style>
 </head>
 <body class="bg-black text-white" data-theme="default">
     <a href="#main-content" class="skip-link">Skip to main content</a>
     
-    <div id="password-gate-overlay" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.9);z-index:9999;">
-        <form id="password-gate-form" style="background:#111;padding:2rem;border:1px solid #333;border-radius:.75rem;max-width:320px;width:100%;font-family:system-ui;">
-            <h2 style="margin:0 0 1rem;font-size:1.2rem;color:#fff;">Protected Page</h2>
-            <p style="font-size:.75rem;color:#999;line-height:1.3;margin:0 0 1rem;">Enter password to view content.</p>
-            <input type="password" id="password-gate-input" placeholder="Password" style="width:100%;padding:.6rem .8rem;background:#1a1a1a;border:1px solid #333;border-radius:.5rem;color:#fff;margin-bottom:1rem;" />
-            <button type="submit" style="width:100%;background:#7e5bef;border:none;padding:.6rem 1rem;border-radius:.5rem;font-weight:600;cursor:pointer;">Unlock</button>
-            <div id="password-gate-error" style="color:#f87171;font-size:.7rem;margin-top:.75rem;display:none;"></div>
+    <div id="password-gate-overlay">
+        <form id="password-gate-form" class="password-gate-form">
+            <h2>Protected Page</h2>
+            <p>Enter password to view content.</p>
+            <input type="password" id="password-gate-input" class="password-gate-input" placeholder="Password" />
+            <button type="submit" class="password-gate-submit">Unlock</button>
+            <div id="password-gate-error"></div>
         </form>
     </div>
     <div id="header-placeholder" data-template="header" data-root-path=""></div>
@@ -430,7 +395,7 @@
                 </p>
                 <div class="pixabay-actions">
                     <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                        <button id="apiKeyButton" class="api-key-btn">🔑 Set API Key</button>
+                        <button id="apiKeyButton" type="button" class="api-key-btn">🔑 Set API Key</button>
                         <a class="text-sm text-gray-400 hover:text-white transition-colors" href="https://pixabay.com/api/docs/" target="_blank" rel="noopener">Pixabay API guide -></a>
                     </div>
                 </div>
@@ -455,7 +420,7 @@
             </div>
         </section>
 
-        <div id="status" class="status" style="display: none;"></div>
+        <div id="status" class="status" role="status" aria-live="polite" style="display: none;"></div>
 
         <section class="pixabay-panel">
             <h2 class="text-xl font-semibold">Search Parameters</h2>
@@ -538,9 +503,8 @@
                             </div>
                         </div>
 
-                        <button class="btn-primary w-full">
+                        <button type="button" class="btn-primary w-full">
                             <span id="searchBtnText">Search Images</span>
-                            <span id="searchSpinner" style="display: none;"><span class="spinner"></span></span>
                         </button>
                     </div>
                 </section>
@@ -555,13 +519,13 @@
             </ul>
         </section>
 
-        <div id="results" class="pixabay-panel mt-10" style="display: none;">
+        <div id="results" class="pixabay-panel mt-10" style="display: none;" role="region" aria-label="Image search results">
             <h2 class="text-xl font-semibold mb-4">Search Results</h2>
             <div id="resultsGrid"></div>
         </div>
     </main>
 
-    <div id="footer-placeholder" data-template="footer" data-root-path=""></div>oot-path=""></div>
+    <div id="footer-placeholder" data-template="footer" data-root-path=""></div>
 
     <script src="js/template-loader.js" defer nonce="qi123"></script>
     <script src="js/mobile-menu.js" defer nonce="qi123"></script>
@@ -619,7 +583,6 @@
             elements.format = document.getElementById('format');
             elements.searchBtn = document.querySelector('.btn-primary');
             elements.searchBtnText = document.getElementById('searchBtnText');
-            elements.searchSpinner = document.getElementById('searchSpinner');
             elements.results = document.getElementById('results');
             elements.resultsGrid = document.getElementById('resultsGrid');
         }
@@ -684,8 +647,8 @@
 
         function setLoadingState(isLoading) {
             elements.searchBtn.disabled = isLoading;
-            elements.searchBtnText.style.display = isLoading ? 'none' : 'inline';
-            elements.searchSpinner.style.display = isLoading ? 'inline-block' : 'none';
+            elements.searchBtn.style.opacity = isLoading ? '0.6' : '1';
+            elements.searchBtnText.textContent = isLoading ? 'Searching...' : 'Search Images';
         }
 
         async function searchImages() {
@@ -711,7 +674,10 @@
                 const params = buildSearchParams(query);
                 const response = await fetch(`${API_URL}?${params}`);
                 
-                if (!response.ok) throw new Error('API request failed');
+                if (!response.ok) {
+                    const errorText = response.status === 429 ? 'Rate limit exceeded. Please wait and try again.' : `API error: ${response.status}`;
+                    throw new Error(errorText);
+                }
                 
                 const data = await response.json();
                 
@@ -779,7 +745,7 @@
                     By: ${img.user}
                 </div>
                 <div class="image-actions">
-                    <button class="btn-small btn-download" data-index="${index}">
+                    <button type="button" class="btn-small btn-download" data-index="${index}">
                         Download
                     </button>
                 </div>
@@ -797,8 +763,8 @@
         async function downloadImage(index) {
             const img = currentImages[index];
             const format = elements.format.value;
-            const targetWidth = parseInt(elements.width.value, 10);
-            const targetHeight = parseInt(elements.height.value, 10);
+            const targetWidth = Math.max(100, Math.min(4000, parseInt(elements.width.value, 10) || 1200));
+            const targetHeight = Math.max(100, Math.min(4000, parseInt(elements.height.value, 10) || 800));
 
             showStatus('Processing image...', 'loading');
 
