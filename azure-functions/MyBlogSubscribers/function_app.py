@@ -10,7 +10,7 @@ from email_subscriber import (
 
 app = func.FunctionApp()
 
-@app.route(route="SubscribeEmail", methods=["POST", "OPTIONS"], auth_level=func.AuthLevel.FUNCTION)
+@app.route(route="SubscribeEmail", methods=["POST", "OPTIONS"], auth_level=func.AuthLevel.ANONYMOUS)
 def subscribe_email(req: func.HttpRequest) -> func.HttpResponse:
     logging.info('Python HTTP trigger function processed a request.')
 
