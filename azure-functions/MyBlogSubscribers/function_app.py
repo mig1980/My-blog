@@ -7,6 +7,7 @@ from email_subscriber import (
     subscribe_email as subscribe_email_logic,
     SubscriptionError,
 )
+from weekly_job import send_weekly_newsletter
 
 app = func.FunctionApp()
 
@@ -84,3 +85,26 @@ def subscribe_email(req: func.HttpRequest) -> func.HttpResponse:
             status_code=500,
             headers=headers
         )
+
+
+@app.timer_trigger(schedule="0 0 12 * * FRI", arg_name="mytimer", run_on_startup=False)
+def weekly_newsletter(mytimer: func.TimerRequest) -> None:
+    """
+    Timer trigger function that sends weekly newsletter every Friday at 12:00 PM UTC.
+    
+    Schedule format: "seconds minutes hours day month dayOfWeek"
+    Current: 0 0 12 * * FRI = Every Friday at 12:00 PM UTC
+    
+    Adjust schedule as needed:
+    - "0 0 9 * * MON" = Every Monday at 9:00 AM UTC
+    - "0 30 14 * * *" = Every day at 2:30 PM UTC
+    """
+    logging.info('Weekly newsletter timer trigger started')
+    
+    if mytimer.past_due:
+        logging.info('Timer is past due, running now')
+    
+    # Send the newsletter
+    result = send_weekly_newsletter()
+    
+    logging.info(f"Weekly newsletter completed: {result}")

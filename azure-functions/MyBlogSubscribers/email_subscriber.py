@@ -35,3 +35,53 @@ def subscribe_email(email: str) -> dict:
             "status": "exists",
             "message": "You're already subscribed!"
         }
+
+
+def get_active_subscribers() -> list:
+    """
+    Get all active subscribers from the table.
+    
+    Returns:
+        list: List of active subscriber email addresses
+    """
+    table = get_table_client()
+    
+    # Query for active subscribers
+    filter_query = f"PartitionKey eq '{PARTITION_KEY}' and isActive eq true"
+    entities = table.query_entities(filter_query)
+    
+    # Extract just the email addresses
+    emails = [entity['email'] for entity in entities]
+    
+    return emails
+
+
+def unsubscribe_email(email: str) -> dict:
+    """
+    Soft unsubscribe - sets isActive to False.
+    
+    Args:
+        email: Email address to unsubscribe
+        
+    Returns:
+        dict: Status message
+    """
+    table = get_table_client()
+    
+    try:
+        # Get the entity
+        entity = table.get_entity(
+            partition_key=PARTITION_KEY,
+            row_key=email.lower()
+        )
+        
+        # Update isActive flag
+        entity['isActive'] = False
+        table.update_entity(entity, mode='replace')
+        
+        return {
+            "status": "unsubscribed",
+            "message": "You've been unsubscribed successfully."
+        }
+    except Exception as e:
+        raise SubscriptionError(f"Failed to unsubscribe: {str(e)}")

@@ -1,263 +1,400 @@
-# Email Infrastructure & Azure Functions Guide
+# Email Subscription System - Implementation Guide
 
-This document describes how your blog’s email subscription pipeline works and how to extend it with SendGrid for weekly emails, using a simple, module-based structure.
+## Overview
 
-## 1. Project Structure
+This Azure Functions application provides:
+1. **HTTP Endpoint**: Public API for email subscriptions
+2. **Table Storage**: Subscriber data persistence
+3. **Timer Trigger**: Weekly newsletter automation with Brevo
+4. **Modular Design**: Separation of concerns for maintainability
 
-In `azure-functions/MyBlogSubscribers` the recommended layout is:
+---
 
-- `function_app.py` – HTTP/timer function definitions (bindings + HTTP concerns only)
-- `email_subscriber.py` – logic for storing subscribers in Azure Table Storage
-- `mailer.py` – (future) SendGrid email sending helpers
-- `weekly_job.py` – (future) timer-triggered weekly email sender
-- `requirements.txt` – Python dependencies
-- `host.json`, `local.settings.json` – Azure Functions configuration
+## Architecture
 
-This keeps responsibilities clear and minimizes future maintenance.
+```
+azure-functions/MyBlogSubscribers/
+├── function_app.py          # HTTP + Timer triggers
+├── email_subscriber.py      # Table Storage operations
+├── mailer.py                # Brevo email sending
+├── weekly_job.py            # Newsletter generation & sending
+├── requirements.txt         # Python dependencies
+└── local.settings.json      # Local environment config
+```
 
-## 2. Local Configuration
+---
 
-`local.settings.json` should contain at least:
+## Module Responsibilities
 
-```json
+### 1. `function_app.py` - Azure Functions Entry Point
+**Purpose**: Defines HTTP and timer-triggered functions
+
+**Key Functions**:
+- `subscribe_email()`: HTTP POST endpoint for subscriptions
+  - Auth: ANONYMOUS (public access)
+  - Methods: POST, OPTIONS (CORS support)
+  - Returns: JSON response with status
+
+- `weekly_newsletter()`: Timer trigger for weekly emails
+  - Schedule: `"0 0 12 * * FRI"` (Every Friday at 12 PM UTC)
+  - Calls: `weekly_job.send_weekly_newsletter()`
+
+### 2. `email_subscriber.py` - Data Layer
+**Purpose**: Azure Table Storage CRUD operations
+
+**Key Functions**:
+- `subscribe_email(email)`: Add new subscriber
+  - Validates email format
+  - Handles duplicates gracefully
+  - Sets `isActive=true` by default
+
+- `get_active_subscribers()`: Retrieve all active subscribers
+  - Filters: `isActive eq true`
+  - Returns: List of email addresses
+
+- `unsubscribe_email(email)`: Soft delete
+  - Sets `isActive=false` (preserves data)
+
+**Table Schema**:
+```python
 {
-  "IsEncrypted": false,
-  "Values": {
-    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
-    "FUNCTIONS_WORKER_RUNTIME": "python",
-    "STORAGE_CONNECTION_STRING": "<your_storage_connection_string>",
-    "SENDGRID_API_KEY": "<your_sendgrid_key_later>"
-  }
+    "PartitionKey": "subscriber",      # Fixed value
+    "RowKey": "user@example.com",      # Email as unique key
+    "email": "user@example.com",       # Searchable email field
+    "subscribedAt": "2025-01-23T...",  # ISO timestamp
+    "isActive": true                    # Boolean flag
 }
 ```
 
-- `STORAGE_CONNECTION_STRING` is the connection string for the `myblogsubscribers` storage account.
-- `SENDGRID_API_KEY` will be used later when you wire up email sending.
+### 3. `mailer.py` - Email Delivery Layer
+**Purpose**: Brevo API abstraction
 
-Get the storage connection string via:
+**Key Functions**:
+- `send_email(to_email, subject, html_body)`: Single email
+  - Uses Brevo transactional API
+  - Returns status dict with success/failure
 
+- `send_bulk_email(recipients, subject, html_body)`: Batch sending
+  - Loops through recipients
+  - Logs individual failures
+  - Returns summary statistics
+
+**Environment Variables Required**:
+- `BREVO_API_KEY`: API key from Brevo
+- `BREVO_FROM_EMAIL`: Verified sender address
+- `BREVO_FROM_NAME`: Sender display name (optional, defaults to "Quantum Investor Digest")
+
+### 4. `weekly_job.py` - Newsletter Business Logic
+**Purpose**: Newsletter content generation and distribution
+
+**Key Functions**:
+- `get_weekly_email_content()`: Generate newsletter HTML
+  - Returns: `{"subject": "...", "html_body": "..."}`
+  - Customizable template
+
+- `send_weekly_newsletter()`: Main job function
+  1. Fetch active subscribers
+  2. Generate email content
+  3. Send via `mailer.send_bulk_email()`
+  4. Log results
+
+---
+
+## Configuration
+
+### Azure Function App Settings
+Set these in Azure Portal → Function App → Configuration:
+
+```bash
+# Storage connection (already configured)
+STORAGE_CONNECTION_STRING = "DefaultEndpointsProtocol=https;..."
+
+# Brevo configuration (ADD THESE)
+BREVO_API_KEY = "xkeysib-xxxxxxxxxxxxx"
+BREVO_FROM_EMAIL = "noreply@quantuminvestor.net"
+BREVO_FROM_NAME = "Quantum Investor"
+```
+
+### Brevo Setup
+1. **Create Account**: https://www.brevo.com/
+2. **Verify Sender**: Settings → Senders & IP
+   - Add and verify sender email address
+   - Complete domain authentication for production
+3. **Get API Key**: Settings → SMTP & API → API Keys
+   - Create new API key with name (e.g., "Azure Functions")
+   - Copy key immediately (shown once)
+
+### Update Azure Configuration
 ```powershell
-az storage account show-connection-string `
-  --name myblogsubscribers `
+# Set Brevo API key
+az functionapp config appsettings set `
+  --name myblog-subscribers `
   --resource-group myblog-subscribers_group `
-  --query connectionString -o tsv
+  --settings "BREVO_API_KEY=xkeysib-your_key_here"
+
+# Set sender email
+az functionapp config appsettings set `
+  --name myblog-subscribers `
+  --resource-group myblog-subscribers_group `
+  --settings "BREVO_FROM_EMAIL=noreply@quantuminvestor.net"
+
+# Set sender name (optional)
+az functionapp config appsettings set `
+  --name myblog-subscribers `
+  --resource-group myblog-subscribers_group `
+  --settings "BREVO_FROM_NAME=Quantum Investor"
 ```
 
-Use the same value both in `local.settings.json` (local dev) and as an App Setting in the Function App in Azure.
+---
 
-## 3. Subscription Logic Module (`email_subscriber.py`)
+## Deployment
 
-Create `email_subscriber.py` to encapsulate all Azure Table Storage interactions for subscribers:
+### Method 1: Azure Functions Core Tools (Recommended)
+```powershell
+cd c:\Users\mgavril\Documents\GitHub\My-blog\azure-functions\MyBlogSubscribers
+func azure functionapp publish myblog-subscribers --build remote
+```
 
-- Reads `STORAGE_CONNECTION_STRING` from environment.
-- Uses table name `subscribers`.
-- Uses `PartitionKey = subscriber` and `RowKey = email.lower()`.
-- Provides a simple API:
-  - `subscribe_email(email: str) -> dict`
-  - Raises `SubscriptionError` if configuration is missing.
+### Method 2: GitHub Actions
+Push to main branch triggers `.github/workflows/main_myblog-subscribers.yml`
 
-Example outline:
+---
 
+## Testing
+
+### Test Subscription Endpoint
+```powershell
+# Subscribe a new email
+curl -X POST https://myblog-subscribers-dbatcqezhcddd6gy.canadacentral-01.azurewebsites.net/api/subscribeemail `
+  -H "Content-Type: application/json" `
+  -d '{\"email\": \"test@example.com\"}'
+
+# Expected: {"status": "success", "message": "Thank you for subscribing!"}
+```
+
+### Test Timer Trigger Manually
+1. Azure Portal → Function App → Functions → weekly_newsletter
+2. Click "Code + Test" → "Test/Run"
+3. Click "Run" (no input needed)
+4. Check "Logs" tab for output
+
+### Verify Brevo Delivery
+1. Brevo Dashboard → Statistics → Email
+2. View real-time sending stats
+3. Check individual email logs
+
+---
+
+## Monitoring
+
+### Azure Function Logs
+```powershell
+# Stream live logs
+func azure functionapp logstream myblog-subscribers
+```
+
+### Azure Portal Insights
+1. Function App → Monitor → Logs
+2. Query example:
+```kusto
+traces
+| where timestamp > ago(1h)
+| where message contains "newsletter"
+| order by timestamp desc
+```
+
+---
+
+## Troubleshooting
+
+### Issue: Timer Not Triggering
+**Check**:
+- Function App is running (not stopped)
+- Schedule syntax: `"0 0 12 * * FRI"` (cron format)
+- Timezone: Azure uses UTC by default
+
+**Solution**:
+```powershell
+# View function status
+az functionapp show --name myblog-subscribers --resource-group myblog-subscribers_group --query "state"
+```
+
+### Issue: Brevo Emails Not Sending
+**Check**:
+1. API key configured correctly
+2. Sender email verified in Brevo
+3. Check mailer.py logs for errors
+4. Brevo account has available email credits
+
+**Debug**:
 ```python
-import os
-from datetime import datetime
-from azure.data.tables import TableClient, TableEntity
-from azure.core.exceptions import ResourceExistsError
-
-TABLE_NAME = "subscribers"
-PARTITION_KEY = "subscriber"
-
-class SubscriptionError(Exception):
-    pass
-
-def get_table_client():
-    conn_str = os.environ.get("STORAGE_CONNECTION_STRING")
-    if not conn_str:
-        raise SubscriptionError("Storage connection not configured")
-    return TableClient.from_connection_string(conn_str, TABLE_NAME)
-
-def subscribe_email(email: str) -> dict:
-    table = get_table_client()
-    entity = TableEntity()
-    entity["PartitionKey"] = PARTITION_KEY
-    entity["RowKey"] = email.lower()
-    entity["email"] = email.lower()
-    entity["subscribedAt"] = datetime.utcnow().isoformat()
-    entity["isActive"] = True
-
-    try:
-        table.create_entity(entity=entity)
-        return {
-            "status": "created",
-            "message": "Thank you for subscribing! You'll receive weekly updates."
-        }
-    except ResourceExistsError:
-        return {
-            "status": "exists",
-            "message": "You're already subscribed!"
-        }
+# Add to weekly_job.py after send_bulk_email()
+logging.info(f"Email results: {result}")
 ```
 
-## 4. HTTP Function (`function_app.py`)
+### Issue: No Subscribers Returned
+**Check**:
+- Table Storage connection string valid
+- Subscribers exist with `isActive=true`
 
-`function_app.py` is responsible for:
-
-- HTTP binding and routes (`SubscribeEmail`).
-- CORS headers.
-- Parsing JSON and validating email format.
-- Calling `email_subscriber.subscribe_email` and mapping its result to HTTP responses.
-
-High-level flow for `SubscribeEmail`:
-
-1. Handle `OPTIONS` preflight with CORS headers.
-2. Read JSON body, extract `email`.
-3. Validate presence and format (regex).
-4. Call `subscribe_email(email)` from `email_subscriber`.
-5. If status is `created` or `exists`, return `200` + corresponding message.
-6. On `SubscriptionError`, return `500` with a generic service configuration error.
-7. On unexpected exceptions, log and return `500`.
-
-This keeps the function small and testable.
-
-## 5. Front-End Integration (`templates/subscribe-form.html`)
-
-In `templates/subscribe-form.html` you already have a subscription form and JS that posts to an Azure Function URL:
-
-```js
-const AZURE_FUNCTION_URL = 'PASTE_YOUR_FUNCTION_URL_HERE';
-```
-
-After deploying the function:
-
-1. In the Azure Portal, go to Function App `myblogsubscribers`.
-2. Open `SubscribeEmail` function.
-3. Click **Get Function URL** and copy the URL (with `code` query parameter).
-4. Replace the placeholder in the HTML:
-
-```js
-const AZURE_FUNCTION_URL = 'https://myblogsubscribers.azurewebsites.net/api/SubscribeEmail?code=...';
-```
-
-For local testing, use the local URL from `func start`, e.g.:
-
-```js
-const AZURE_FUNCTION_URL = 'http://localhost:7071/api/SubscribeEmail';
-```
-
-## 6. Running Locally in VS Code
-
-From the repo root:
-
+**Query Storage**:
 ```powershell
-cd azure-functions\MyBlogSubscribers
-
-# (if using a virtualenv, activate it first)
-# .venv\Scripts\Activate.ps1
-
-pip install -r requirements.txt
-
-func start
-```
-
-- The Functions host will start and show the URL for `SubscribeEmail`.
-- Point the front-end to that local URL and submit the form to test end-to-end.
-
-## 7. Verifying Table Writes
-
-Use Azure CLI or Azure Storage Explorer to confirm that subscribers are written into the `subscribers` table.
-
-Example CLI query:
-
-```powershell
+# List all subscribers (Azure CLI)
 az storage entity query `
   --account-name myblogsubscribers `
   --table-name subscribers `
-  --connection-string "<your_connection_string>"
+  --filter "PartitionKey eq 'subscriber'"
 ```
 
-You should see entities with:
+---
 
-- `PartitionKey = subscriber`
-- `RowKey = <email>`
-- `isActive = true`
+## Email Template Customization
 
-## 8. Deploying the Function App
+### Edit Newsletter Content
+Modify `weekly_job.py` → `get_weekly_email_content()`:
 
-1. Ensure you are logged into Azure and using the correct subscription:
-
-```powershell
-az login
-az account set --subscription "cf6c1145-b49c-4d96-9384-9f092c407031"
+```python
+def get_weekly_email_content():
+    """Generate weekly email content."""
+    
+    html_body = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body { font-family: Arial, sans-serif; }
+            .header { background: #1a1a1a; color: white; padding: 20px; }
+            .content { padding: 20px; }
+            .footer { background: #f5f5f5; padding: 10px; text-align: center; }
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <h1>📊 Quantum Investor - Weekly Digest</h1>
+        </div>
+        <div class="content">
+            <p>Hi there! 👋</p>
+            <p>Here's what happened this week in the markets...</p>
+            
+            <!-- ADD YOUR CONTENT HERE -->
+            <ul>
+                <li>Market update</li>
+                <li>Portfolio performance</li>
+                <li>Key insights</li>
+            </ul>
+            
+            <p>Read more on <a href="https://quantuminvestor.net">quantuminvestor.net</a></p>
+        </div>
+        <div class="footer">
+            <p>You're receiving this because you subscribed at quantuminvestor.net</p>
+            <p><a href="https://quantuminvestor.net/unsubscribe">Unsubscribe</a></p>
+        </div>
+    </body>
+    </html>
+    """
+    
+    return {
+        "subject": "📊 Your Weekly Quantum Investor Digest",
+        "html_body": html_body
+    }
 ```
 
-2. From `azure-functions/MyBlogSubscribers`:
+---
 
-```powershell
-func azure functionapp publish myblogsubscribers
+## Next Steps
+
+1. **Set Up Brevo**
+   - Create account + verify sender
+   - Add API key to Azure settings
+
+2. **Test Email Sending**
+   - Manually trigger `weekly_newsletter` function
+   - Verify delivery to test subscriber
+
+3. **Customize Email Template**
+   - Edit `get_weekly_email_content()` in `weekly_job.py`
+   - Include blog post links, images, etc.
+
+4. **Schedule Adjustment** (optional)
+   - Current: Friday 12 PM UTC
+   - Edit `function_app.py` schedule if needed
+
+5. **Add Unsubscribe Page**
+   - Create `unsubscribe.html` on site
+   - Call Azure Function with email parameter
+   - Use `email_subscriber.unsubscribe_email()`
+
+---
+
+## API Reference
+
+### Subscribe Endpoint
+**URL**: `https://myblog-subscribers-dbatcqezhcddd6gy.canadacentral-01.azurewebsites.net/api/subscribeemail`
+
+**Method**: `POST`
+
+**Headers**:
+```
+Content-Type: application/json
 ```
 
-3. In Azure Portal → Function App → **Configuration** → **Application settings**, set:
-
-- `STORAGE_CONNECTION_STRING` = your storage connection string
-- (later) `SENDGRID_API_KEY` = your SendGrid API key
-
-4. Use the **Test/Run** blade on `SubscribeEmail` with JSON:
-
+**Body**:
 ```json
 {
-  "email": "test@example.com"
+  "email": "user@example.com"
 }
 ```
 
-5. Once confirmed working, update the front-end to use the production function URL (see section 5).
+**Responses**:
+```json
+// Success
+{
+  "status": "success",
+  "message": "Thank you for subscribing! You'll receive weekly updates."
+}
 
-## 9. CORS Configuration
+// Already subscribed
+{
+  "status": "exists",
+  "message": "You're already subscribed!"
+}
 
-Allow your blog domain (e.g. `https://quantuminvestor.ai`) to call the function:
+// Invalid email
+{
+  "status": "error",
+  "message": "Invalid email address"
+}
 
-```powershell
-az functionapp cors add `
-  --name myblogsubscribers `
-  --resource-group myblog-subscribers_group `
-  --allowed-origins "https://quantuminvestor.ai"
+// Server error
+{
+  "status": "error",
+  "message": "Failed to process subscription"
+}
 ```
 
-For local testing, you can temporarily allow `http://localhost:<port>` if served via Live Server or similar.
+---
 
-## 10. Preparing for Weekly Emails with SendGrid
+## Production Checklist
 
-When ready to send weekly emails:
+- [x] Azure Function deployed
+- [x] Storage Table created
+- [x] CORS configured for domain
+- [x] CSP updated in index.html
+- [x] Subscribe form tested
+- [ ] Brevo account created
+- [ ] Sender email verified
+- [ ] API key configured in Azure
+- [ ] Newsletter template customized
+- [ ] Timer trigger tested manually
+- [ ] Email delivery verified
+- [ ] Unsubscribe flow implemented
 
-1. Add SendGrid to `requirements.txt`:
+---
 
-```txt
-sendgrid==6.11.0
-```
+## Resources
 
-2. Create `mailer.py` with a small API (example):
-
-- Reads `SENDGRID_API_KEY` from env.
-- Exposes `send_email(to: str, subject: str, html_body: str)`.
-
-3. Create `weekly_job.py` with a timer trigger, for example running every Friday:
-
-- CRON schedule example: `0 0 12 * * 5` (12:00 UTC Fridays).
-- Logic:
-  - Use `email_subscriber.get_table_client()` to query active subscribers.
-  - Build your email HTML (from templates or generated content).
-  - Loop over subscribers and call `mailer.send_email(...)`.
-
-Because subscription logic is centralized in `email_subscriber.py`, the weekly job stays small and easy to maintain.
-
-## 11. Best Practices Recap
-
-- **Single responsibility**:
-  - `function_app.py`: triggers and bindings, HTTP/timer glue.
-  - `email_subscriber.py`: table operations and subscription rules.
-  - `mailer.py`: email delivery via SendGrid.
-- **Configuration via environment**: no secrets hard-coded in source.
-- **Simple data model**: 1 table (`subscribers`), fixed partition key, `RowKey = email`.
-- **Reusable modules**: weekly job and any future tooling reuse the same subscription logic.
-- **Minimal moving parts**: Azure Functions + Storage Tables + SendGrid.
-
-This setup gives you a clean foundation: the subscribe form writes to Azure Table Storage via a Function, and you can layer on weekly SendGrid-based emails with minimal extra code and clear separation of concerns.
+- [Azure Functions Python Docs](https://docs.microsoft.com/azure/azure-functions/functions-reference-python)
+- [Azure Table Storage SDK](https://docs.microsoft.com/python/api/azure-data-tables)
+- [Brevo API Documentation](https://developers.brevo.com/)
+- [Brevo Python SDK](https://github.com/sendinblue/APIv3-python-library)
+- [Cron Expression Generator](https://crontab.guru/)
