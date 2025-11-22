@@ -1,11 +1,12 @@
-import azure.functions as func
 import json
 import logging
-import os
 import re
-from datetime import datetime
-from azure.data.tables import TableClient, TableEntity
-from azure.core.exceptions import ResourceExistsError
+
+import azure.functions as func
+from email_subscriber import (
+    subscribe_email as subscribe_email_logic,
+    SubscriptionError,
+)
 
 app = func.FunctionApp()
 
@@ -57,51 +58,20 @@ def subscribe_email(req: func.HttpRequest) -> func.HttpResponse:
         )
 
     try:
-        # Get credentials from environment variables
-        connection_string = os.environ.get('STORAGE_CONNECTION_STRING')
-        
-        if not connection_string:
-            logging.error('STORAGE_CONNECTION_STRING not configured')
-            return func.HttpResponse(
-                json.dumps({'message': 'Service configuration error'}),
-                status_code=500,
-                headers=headers
-            )
-        
-        table_name = 'subscribers'
-
-        # Create table client
-        table_client = TableClient.from_connection_string(
-            conn_str=connection_string,
-            table_name=table_name
-        )
-
-        # Create entity
-        entity = TableEntity()
-        entity['PartitionKey'] = 'subscriber'
-        entity['RowKey'] = email.lower()
-        entity['email'] = email.lower()
-        entity['subscribedAt'] = datetime.utcnow().isoformat()
-        entity['isActive'] = True
-
-        # Try to insert entity
-        table_client.create_entity(entity=entity)
+        result = subscribe_email_logic(email)
+        message = result.get('message', 'Subscription processed.')
 
         return func.HttpResponse(
-            json.dumps({
-                'message': 'Thank you for subscribing! You\'ll receive weekly updates.'
-            }),
+            json.dumps({'message': message}),
             status_code=200,
             headers=headers
         )
 
-    except ResourceExistsError:
-        # Email already exists
+    except SubscriptionError as e:
+        logging.error(f'Subscription configuration error: {str(e)}')
         return func.HttpResponse(
-            json.dumps({
-                'message': 'You\'re already subscribed!'
-            }),
-            status_code=200,
+            json.dumps({'message': 'Service configuration error'}),
+            status_code=500,
             headers=headers
         )
 
