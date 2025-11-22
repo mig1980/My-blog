@@ -338,8 +338,13 @@
         body: JSON.stringify({ email: email })
       });
 
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Subscription failed' }));
+        const errorText = await response.text();
+        console.log('Error response body:', errorText);
+        const errorData = errorText ? JSON.parse(errorText) : { message: 'Subscription failed' };
         throw new Error(errorData.message || 'Subscription failed');
       }
 
