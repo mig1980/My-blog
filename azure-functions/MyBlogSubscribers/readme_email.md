@@ -17,9 +17,18 @@ azure-functions/MyBlogSubscribers/
 ├── function_app.py          # HTTP + Timer triggers
 ├── email_subscriber.py      # Table Storage operations
 ├── mailer.py                # Brevo email sending
-├── weekly_job.py            # Newsletter generation & sending
+├── weekly_job.py            # Newsletter retrieval & sending
 ├── requirements.txt         # Python dependencies
 └── local.settings.json      # Local environment config
+
+Azure Resources:
+├── Table Storage            # Subscriber data
+├── Blob Storage            # Pre-generated newsletter HTML files
+│   └── newsletters/
+│       ├── week1.html
+│       ├── week2.html
+│       └── ...
+└── Function App            # Serverless compute
 ```
 
 ---
@@ -84,19 +93,27 @@ azure-functions/MyBlogSubscribers/
 - `BREVO_FROM_EMAIL`: Verified sender address
 - `BREVO_FROM_NAME`: Sender display name (optional, defaults to "Quantum Investor Digest")
 
-### 4. `weekly_job.py` - Newsletter Business Logic
-**Purpose**: Newsletter content generation and distribution
+### 4. `weekly_job.py` - Newsletter Distribution Logic
+**Purpose**: Retrieve pre-generated newsletters and distribute to subscribers
 
 **Key Functions**:
-- `get_weekly_email_content()`: Generate newsletter HTML
+- `get_latest_week_number()`: Auto-detect latest week from GitHub Posts folder
+  - Scans for: `GenAi-Managed-Stocks-Portfolio-Week-X.html`
+  - Returns: Highest week number found
+  - **Note**: Reads from GitHub raw URL (public repository)
+
+- `get_weekly_email_content()`: Retrieve newsletter from Azure Blob Storage
+  - Downloads: `newsletters/week{X}.html` from Blob Storage
+  - Validates: HTML structure, encoding, content
   - Returns: `{"subject": "...", "html_body": "..."}`
-  - Customizable template
+  - Raises: `FileNotFoundError`, `ValueError`, or `IOError` on failure
 
 - `send_weekly_newsletter()`: Main job function
-  1. Fetch active subscribers
-  2. Generate email content
-  3. Send via `mailer.send_bulk_email()`
-  4. Log results
+  1. Auto-detect latest week from GitHub Posts/
+  2. Fetch newsletter HTML from Blob Storage
+  3. Get active subscribers from Table Storage
+  4. Send via `mailer.send_bulk_email()`
+  5. Return detailed status with error types
 
 ---
 
@@ -106,19 +123,43 @@ azure-functions/MyBlogSubscribers/
 Set these in Azure Portal → Function App → Configuration:
 
 ```bash
-# Storage connection (already configured)
+# Storage connection (already configured - used for Table Storage AND Blob Storage)
 STORAGE_CONNECTION_STRING = "DefaultEndpointsProtocol=https;..."
 
-# Brevo configuration (ADD THESE)
-BREVO_API_KEY = "xkeysib-xxxxxxxxxxxxx"
-BREVO_FROM_EMAIL = "noreply@quantuminvestor.net"
-BREVO_FROM_NAME = "Quantum Investor"
+# Brevo configuration (already configured)
+BREVO_API_KEY = "xkeysib-xxxxxxxxxxxxx"  # ⏳ Needs to be set
+BREVO_FROM_EMAIL = "newsletter@quantuminvestor.net"  # ✅ Already set
+BREVO_FROM_NAME = "Quantum Investor"  # Optional
 ```
+
+**Note**: The same `STORAGE_CONNECTION_STRING` is used for both:
+- **Table Storage**: Subscriber management
+- **Blob Storage**: Newsletter HTML file storage
+
+### Azure Blob Storage Setup
+1. **Create newsletters container**:
+   ```powershell
+   az storage container create --name newsletters --account-name myblogsubscribers --public-access blob
+   ```
+
+2. **Upload newsletter HTML files**:
+   ```powershell
+   # Upload individual newsletter
+   az storage blob upload --account-name myblogsubscribers --container-name newsletters --name week6.html --file path/to/week6.html
+   
+   # Or upload multiple files
+   az storage blob upload-batch --account-name myblogsubscribers --destination newsletters --source path/to/newsletters/
+   ```
+
+3. **Verify uploads**:
+   ```powershell
+   az storage blob list --account-name myblogsubscribers --container-name newsletters --output table
+   ```
 
 ### Brevo Setup
 1. **Create Account**: https://www.brevo.com/
 2. **Verify Sender**: Settings → Senders & IP
-   - Add and verify sender email address
+   - Add and verify sender email address (`newsletter@quantuminvestor.net`)
    - Complete domain authentication for production
 3. **Get API Key**: Settings → SMTP & API → API Keys
    - Create new API key with name (e.g., "Azure Functions")
@@ -232,6 +273,21 @@ az functionapp show --name myblog-subscribers --resource-group myblog-subscriber
 logging.info(f"Email results: {result}")
 ```
 
+### Issue: Newsletter File Not Found
+**Check**:
+1. Blob Storage container exists: `newsletters`
+2. Newsletter file uploaded for current week
+3. File naming matches: `week{X}.html` (e.g., `week6.html`)
+
+**Verify Blob Storage**:
+```powershell
+# List all newsletters
+az storage blob list --account-name myblogsubscribers --container-name newsletters --output table
+
+# Download specific newsletter to test
+az storage blob download --account-name myblogsubscribers --container-name newsletters --name week6.html --file test_download.html
+```
+
 ### Issue: No Subscribers Returned
 **Check**:
 - Table Storage connection string valid
@@ -246,12 +302,52 @@ az storage entity query `
   --filter "PartitionKey eq 'subscriber'"
 ```
 
+### Issue: Cannot Detect Latest Week
+**Check**:
+1. GitHub repository is public (required for raw file access)
+2. Posts folder contains files matching pattern: `GenAi-Managed-Stocks-Portfolio-Week-{N}.html`
+3. Function has internet access to fetch from GitHub raw URLs
+
+**Debug**:
+```python
+# Add to weekly_job.py for debugging
+import logging
+logging.info(f"Detected week files: {week_files}")
+logging.info(f"Latest week: {latest_week}")
+```
+
 ---
 
-## Email Template Customization
+## Newsletter Generation Workflow
 
-### Edit Newsletter Content
-Modify `weekly_job.py` → `get_weekly_email_content()`:
+### Current Architecture
+**Newsletters are NOT generated by Azure Functions**. Instead:
+
+1. **Generation** (External):
+   - Create HTML locally or via GitHub Actions
+   - Use `GENAI_PROMPT_NEWSLETTER.md` for AI-generated content
+   - Script reads from `Data/W{N}/master.json` + `Posts/` blog HTML
+
+2. **Storage** (Azure Blob):
+   - Upload generated HTML to Azure Blob Storage
+   - Container: `newsletters`
+   - Naming: `week{N}.html`
+
+3. **Distribution** (Azure Function):
+   - Timer trigger runs Friday 12 PM UTC
+   - Auto-detects latest week from GitHub Posts/ folder
+   - Downloads newsletter from Blob Storage
+   - Sends to all active subscribers
+
+### Why This Architecture?
+- ✅ **Separation of concerns**: Generation is compute-intensive, sending is lightweight
+- ✅ **Flexibility**: Generate newsletters on your schedule, send on a different schedule
+- ✅ **Review before send**: Upload to Blob only after human review
+- ✅ **Timeout safety**: Azure Functions have 5-10 min timeout, generation could take longer
+- ✅ **Cost efficiency**: Don't pay for AI API calls on every function invocation
+
+### Edit Newsletter Content (Pre-Generation)
+Create or modify newsletter HTML files before uploading to Blob Storage:
 
 ```python
 def get_weekly_email_content():
@@ -377,17 +473,20 @@ Content-Type: application/json
 ## Production Checklist
 
 - [x] Azure Function deployed
-- [x] Storage Table created
+- [x] Storage Table created (subscribers)
 - [x] CORS configured for domain
 - [x] CSP updated in index.html
 - [x] Subscribe form tested
+- [x] BREVO_FROM_EMAIL configured
+- [ ] Blob Storage container created (newsletters)
 - [ ] Brevo account created
-- [ ] Sender email verified
-- [ ] API key configured in Azure
-- [ ] Newsletter template customized
+- [ ] Sender email verified in Brevo dashboard
+- [ ] BREVO_API_KEY configured in Azure
+- [ ] Newsletter HTML generated for Week 6
+- [ ] Newsletter uploaded to Blob Storage
 - [ ] Timer trigger tested manually
 - [ ] Email delivery verified
-- [ ] Unsubscribe flow implemented
+- [ ] Unsubscribe flow implemented (optional)
 
 ---
 

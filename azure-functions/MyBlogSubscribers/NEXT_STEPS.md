@@ -12,7 +12,19 @@ Your Azure Function has been successfully updated with Brevo email integration!
 
 ## 🚀 Next Steps to Go Live
 
-### 1. Create Brevo Account & Get API Key
+### 1. Set Up Azure Blob Storage for Newsletters
+
+**Create Blob Storage container:**
+```powershell
+az storage container create --name newsletters --account-name myblogsubscribers --public-access blob
+```
+
+**Verify container created:**
+```powershell
+az storage container list --account-name myblogsubscribers --output table
+```
+
+### 2. Create Brevo Account & Get API Key
 
 **Sign up (Free Tier: 300 emails/day):**
 https://www.brevo.com/
@@ -23,7 +35,7 @@ https://www.brevo.com/
 3. Name it: `Azure Functions Newsletter`
 4. **Copy the key immediately** (it starts with `xkeysib-`)
 
-### 2. Verify Sender Email in Brevo
+### 3. Verify Sender Email in Brevo
 
 1. Go to **Settings** → **Senders & IP**
 2. Click **Add a New Sender**
@@ -31,7 +43,7 @@ https://www.brevo.com/
 4. Check your inbox and verify the email
 5. ✅ **Critical:** This email must match what you configure in step 3
 
-### 3. Configure Azure Function App Settings
+### 4. Configure Azure Function App Settings
 
 **Run these commands in PowerShell:**
 
@@ -63,7 +75,24 @@ az functionapp config appsettings list `
   --query "[?starts_with(name, 'BREVO')].{Name:name, Value:value}" -o table
 ```
 
-### 4. Test Email Sending
+### 5. Generate and Upload Newsletter HTML
+
+**Generate newsletter for Week 6:**
+1. Use AI (ChatGPT/Claude) with prompt from `GENAI_PROMPT_NEWSLETTER.md`
+2. Provide inputs: `Data/W6/master.json` + `Posts/GenAi-Managed-Stocks-Portfolio-Week-6.html`
+3. Save output as `newsletters/week6.html`
+
+**Upload to Azure Blob Storage:**
+```powershell
+az storage blob upload --account-name myblogsubscribers --container-name newsletters --name week6.html --file newsletters/week6.html
+```
+
+**Verify upload:**
+```powershell
+az storage blob list --account-name myblogsubscribers --container-name newsletters --output table
+```
+
+### 6. Test Email Sending
 
 **Method A: Azure Portal (Easiest)**
 1. Go to https://portal.azure.com
@@ -86,7 +115,7 @@ az functionapp function invoke `
 - Check your test subscriber's inbox
 - No errors about "BREVO_API_KEY not configured"
 
-### 5. Verify in Brevo Dashboard
+### 7. Verify in Brevo Dashboard
 
 1. Login to https://app.brevo.com
 2. Go to **Statistics** → **Email**
@@ -94,7 +123,7 @@ az functionapp function invoke `
    - Delivered: 2 (or however many test subscribers you have)
    - Recent activity in real-time logs
 
-### 6. Customize Email Template (Optional)
+### 8. Monitor and Iterate (Optional)
 
 Edit the newsletter content before going live:
 

@@ -65,7 +65,7 @@ def send_email(to_email: str, subject: str, html_body: str, from_email: str = No
         from_name = os.environ.get('BREVO_FROM_NAME', 'Quantum Investor Digest')
     
     try:
-        # Get API client
+        # Get API client (may raise MailerError)
         api_instance = get_brevo_client()
         
         # Create email object
@@ -87,12 +87,15 @@ def send_email(to_email: str, subject: str, html_body: str, from_email: str = No
             "message": f"Email sent successfully to {to_email}"
         }
         
+    except MailerError:
+        # Re-raise configuration errors from get_brevo_client()
+        raise
     except ApiException as e:
         logging.error(f"Brevo API exception for {to_email}: {str(e)}")
-        raise MailerError(f"Failed to send email: {str(e)}")
+        raise MailerError(f"Brevo API error: {str(e)}")
     except Exception as e:
-        logging.error(f"Failed to send email to {to_email}: {str(e)}")
-        raise MailerError(f"Failed to send email: {str(e)}")
+        logging.error(f"Unexpected error sending to {to_email}: {str(e)}")
+        raise MailerError(f"Unexpected error: {str(e)}")
 
 
 def send_bulk_email(recipients: list, subject: str, html_body: str, from_email: str = None, from_name: str = None) -> dict:
