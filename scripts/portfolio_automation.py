@@ -28,7 +28,7 @@ import json
 import argparse
 from datetime import datetime, timedelta
 from pathlib import Path
-from openai import OpenAI
+from openai import AzureOpenAI
 import re
 import time
 import requests
@@ -66,7 +66,7 @@ CSP_POLICY_TEMPLATE = (
 )
 
 class PortfolioAutomation:
-    def __init__(self, week_number=None, github_token=None, model="gpt-4.1", 
+    def __init__(self, week_number=None, github_token=None, model="gpt-5.1-chat", 
                  data_source="data-only", alphavantage_key=None, marketstack_key=None, 
                  finnhub_key=None, eval_date=None, palette="default"):
         # Configuration
@@ -115,9 +115,15 @@ class PortfolioAutomation:
         # Initialize Azure OpenAI client
         if self.azure_api_key:
             try:
-                self.client = OpenAI(
-                    base_url="https://MyPortfolio.openai.azure.com/openai/v1/",
-                    api_key=self.azure_api_key
+                # Azure OpenAI endpoint
+                azure_endpoint = os.getenv(
+                    'AZURE_OPENAI_ENDPOINT',
+                    'https://myportfolious2-resource.cognitiveservices.azure.com/'
+                )
+                self.client = AzureOpenAI(
+                    api_key=self.azure_api_key,
+                    api_version="2024-10-21",
+                    azure_endpoint=azure_endpoint
                 )
                 self.ai_enabled = True
                 logging.info(f"✓ Azure OpenAI initialized (deployment: {self.model})")
@@ -286,10 +292,10 @@ class PortfolioAutomation:
                          f"Failed to load master.json: {str(e)}")
             raise
     
-    def call_ai(self, system_prompt, user_message, temperature=0.7, max_retries=3):
+    def call_ai(self, system_prompt, user_message, max_retries=3):
         """Call Azure OpenAI API with retry logic and automatic fallback
         
-        Uses Azure OpenAI deployment with support for temperature control.
+        Uses Azure OpenAI deployment. Note: GPT-5.1 only supports default temperature (1).
         """
         if not self.client:
             raise ValueError("AI client not initialized. Set AZURE_OPENAI_API_KEY environment variable.")
@@ -305,8 +311,8 @@ class PortfolioAutomation:
                     messages=[
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_message}
-                    ],
-                    temperature=temperature
+                    ]
+                    # Note: GPT-5.1 only supports default temperature (1), custom values not allowed
                 )
                 logging.info(f"✓ AI response received ({current_model})")
                 return response.choices[0].message.content
@@ -398,7 +404,7 @@ Validate all calculations are mathematically correct.
 Return a validation report (PASS or FAIL with details).
 """
             
-            response = self.call_ai(system_prompt, user_message, temperature=0.3)
+            response = self.call_ai(system_prompt, user_message)
             
             # Save validation report to week's data folder
             week_dir = DATA_DIR / f"W{self.week_number}"
@@ -2666,8 +2672,8 @@ def main():
                        help='Week number (default: auto-detect next week)')
     parser.add_argument('--github-token', type=str, 
                        help='[DEPRECATED] Not used with Azure OpenAI')
-    parser.add_argument('--model', type=str, default='gpt-4.1',
-                       help='Azure OpenAI deployment name (default: gpt-4.1)')
+    parser.add_argument('--model', type=str, default='gpt-5.1-chat',
+                       help='Azure OpenAI deployment name (default: gpt-5.1-chat)')
     parser.add_argument('--data-source', type=str, choices=['ai', 'data-only'], default='data-only',
                        help='Data source: data-only (fetch+calculate, then abort - for testing) or ai (full pipeline with narrative)')
     parser.add_argument('--alphavantage-key', type=str,

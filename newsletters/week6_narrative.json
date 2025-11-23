@@ -1,0 +1,41 @@
+{
+  "week_number": 6,
+  "date_range": "2025-11-14 to 2025-11-20",
+  "subject_line": "\ud83d\udcc9 Week 6: -5.82% | Risk-Off Pullback",
+  "preheader": "Portfolio drops below inception value as markets turn risk-off",
+  "opening_paragraph": "The GenAi Chosen portfolio fell -5.82% this week, bringing its total return to -3.01% since inception. The S&P 500 also declined, losing -1.41% for the week, while Bitcoin tumbled -12.10%. All three assets faced significant pressure as risk appetite faded across markets.",
+  "key_insights": [
+    {
+      "title": "Tech leads decline",
+      "description": "High-beta technology names sold off sharply, with Western Digital down -10.77%, Palantir off -9.52%, and Seagate sliding -8.40%."
+    },
+    {
+      "title": "Gold fails defensively",
+      "description": "Newmont fell -8.59%, showing that gold miners were unable to provide their usual safe-haven support in the broader risk-off move."
+    },
+    {
+      "title": "Cyclicals retreat too",
+      "description": "Travel and energy positions such as Royal Caribbean (-4.79%) and NRG Energy (-3.36%) also weakened as momentum reversed across cyclical sectors."
+    }
+  ],
+  "performance_data": {
+    "portfolio_value": 9699,
+    "weekly_change": -5.82,
+    "total_return": -3.01,
+    "sp500_weekly": -1.41,
+    "sp500_total": -0.69,
+    "bitcoin_weekly": -12.1,
+    "bitcoin_total": -28.96,
+    "top_performer": {
+      "ticker": "GEV",
+      "change": -0.04
+    },
+    "worst_performer": {
+      "ticker": "WDC",
+      "change": -10.77
+    }
+  },
+  "market_context": "Markets shifted decisively into risk-off mode, pressuring growth, cyclical, and defensive sectors alike as sentiment weakened across asset classes.",
+  "call_to_action_url": "https://quantuminvestor.net/Posts/GenAi-Managed-Stocks-Portfolio-Week-6.html",
+  "tone": "bearish"
+}

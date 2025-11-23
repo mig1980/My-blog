@@ -1,0 +1,381 @@
+"""
+Stage 1: Generate Newsletter Narrative
+Extracts key insights from blog post and portfolio data, creates narrative JSON.
+"""
+
+import json
+import logging
+import os
+import sys
+import time
+from pathlib import Path
+from typing import Dict, Any
+from bs4 import BeautifulSoup
+import re
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+
+def retry_with_backoff(func, max_retries=3, initial_delay=1.0, backoff_factor=2.0):
+    """
+    Retry a function with exponential backoff for transient failures.
+    
+    Args:
+        func: Function to execute
+        max_retries: Maximum number of retry attempts
+        initial_delay: Initial delay in seconds
+        backoff_factor: Multiplier for delay on each retry
+        
+    Returns:
+        Function result
+        
+    Raises:
+        Exception: If all retries are exhausted
+    """
+    delay = initial_delay
+    last_exception = None
+    
+    for attempt in range(max_retries):
+        try:
+            return func()
+        except Exception as e:
+            last_exception = e
+            error_type = type(e).__name__
+            
+            # Don't retry on validation errors or missing config
+            if error_type in ['ValueError', 'FileNotFoundError', 'KeyError']:
+                raise
+            
+            if attempt < max_retries - 1:
+                logging.warning(
+                    f"Attempt {attempt + 1}/{max_retries} failed: {error_type}: {str(e)}. "
+                    f"Retrying in {delay}s...",
+                    extra={'attempt': attempt + 1, 'error_type': error_type}
+                )
+                time.sleep(delay)
+                delay *= backoff_factor
+            else:
+                logging.error(
+                    f"All {max_retries} attempts failed",
+                    extra={'error_type': error_type},
+                    exc_info=True
+                )
+    
+    raise last_exception
+
+def get_latest_week_number() -> int:
+    """Auto-detect latest week from Posts directory"""
+    posts_dir = Path(__file__).parent.parent / 'Posts'
+    
+    if not posts_dir.exists():
+        raise FileNotFoundError(f"Posts directory not found: {posts_dir}")
+    
+    week_numbers = []
+    pattern = re.compile(r'GenAi-Managed-Stocks-Portfolio-Week-(\d+)\.html')
+    
+    for file in posts_dir.glob('GenAi-Managed-Stocks-Portfolio-Week-*.html'):
+        match = pattern.match(file.name)
+        if match:
+            week_numbers.append(int(match.group(1)))
+    
+    if not week_numbers:
+        raise ValueError("No weekly blog posts found in Posts directory")
+    
+    return max(week_numbers)
+
+def extract_blog_sections(html_content: str) -> Dict[str, str]:
+    """
+    Extract narrative sections from blog post HTML.
+    
+    Args:
+        html_content: Raw HTML content of blog post
+        
+    Returns:
+        Dictionary with 'opening', 'top_movers', 'portfolio_progress' sections
+    """
+    soup = BeautifulSoup(html_content, 'html.parser')
+    
+    sections = {
+        'opening': '',
+        'top_movers': '',
+        'portfolio_progress': ''
+    }
+    
+    # Extract opening paragraph (usually has class text-xl or first p after h1)
+    opening = soup.find('p', class_='text-xl')
+    if opening:
+        sections['opening'] = opening.get_text(strip=True)
+    else:
+        # Fallback: first paragraph
+        first_p = soup.find('p')
+        if first_p:
+            sections['opening'] = first_p.get_text(strip=True)
+        else:
+            logging.warning("No opening paragraph found in blog post")
+    
+    # Extract "Top Movers" section
+    found_top_movers = False
+    for heading in soup.find_all(['h2', 'h3']):
+        heading_text = heading.get_text(strip=True)
+        if 'top movers' in heading_text.lower():
+            paragraphs = []
+            current = heading.find_next_sibling()
+            while current and len(paragraphs) < 3:
+                if current.name == 'p':
+                    paragraphs.append(current.get_text(strip=True))
+                elif current.name in ['h2', 'h3']:
+                    break
+                current = current.find_next_sibling()
+            sections['top_movers'] = ' '.join(paragraphs)
+            found_top_movers = True
+            break
+    
+    if not found_top_movers:
+        logging.warning("'Top Movers' section not found in blog post")
+    
+    # Extract "Portfolio Progress" section
+    found_portfolio_progress = False
+    for heading in soup.find_all(['h2', 'h3']):
+        heading_text = heading.get_text(strip=True)
+        if 'portfolio progress' in heading_text.lower():
+            paragraphs = []
+            current = heading.find_next_sibling()
+            while current and len(paragraphs) < 2:
+                if current.name == 'p':
+                    paragraphs.append(current.get_text(strip=True))
+                elif current.name in ['h2', 'h3']:
+                    break
+                current = current.find_next_sibling()
+            sections['portfolio_progress'] = ' '.join(paragraphs)
+            found_portfolio_progress = True
+            break
+    
+    if not found_portfolio_progress:
+        logging.warning("'Portfolio Progress' section not found in blog post")
+    
+    return sections
+
+def generate_narrative(week_num: int) -> Dict[str, Any]:
+    """
+    Generate newsletter narrative from blog post and portfolio data.
+    Returns narrative JSON and uploads to Azure Blob Storage.
+    """
+    logging.info(f"Generating narrative for Week {week_num}", extra={'week': week_num})
+    
+    # Paths
+    base_dir = Path(__file__).parent.parent
+    data_path = base_dir / f'Data/W{week_num}/master.json'
+    blog_path = base_dir / f'Posts/GenAi-Managed-Stocks-Portfolio-Week-{week_num}.html'
+    
+    # Validate files exist
+    if not data_path.exists():
+        raise FileNotFoundError(f"Data file not found: {data_path}")
+    if not blog_path.exists():
+        raise FileNotFoundError(f"Blog post not found: {blog_path}")
+    
+    # Load portfolio data
+    with open(data_path, 'r', encoding='utf-8') as f:
+        portfolio_data = json.load(f)
+    
+    # Load blog post HTML
+    with open(blog_path, 'r', encoding='utf-8') as f:
+        blog_html = f.read()
+    
+    # Extract sections
+    sections = extract_blog_sections(blog_html)
+    
+    # Prepare AI prompt
+    prompt = f"""You are analyzing a weekly blog post about an AI-managed stock portfolio to extract newsletter content.
+
+BLOG POST SECTIONS:
+
+Opening Paragraph:
+{sections['opening']}
+
+Top Movers Section:
+{sections['top_movers']}
+
+Portfolio Progress:
+{sections['portfolio_progress']}
+
+PORTFOLIO DATA (master.json):
+{json.dumps(portfolio_data, indent=2)}
+
+TASK:
+Extract and condense the blog post into newsletter-ready narrative elements. Focus on clarity, conciseness, and alignment with the blog's tone.
+
+OUTPUT FORMAT (JSON):
+{{
+  "week_number": {week_num},
+  "date_range": "Extract from blog or data metadata",
+  "subject_line": "Generate as: [Emoji] Week X: [%] | [Key Theme] (under 50 chars)",
+  "preheader": "First 50-60 characters for inbox preview",
+  "opening_paragraph": "2-3 sentences summarizing weekly performance and context",
+  "key_insights": [
+    {{
+      "title": "Insight title (3-5 words)",
+      "description": "1-2 sentence explanation"
+    }},
+    {{
+      "title": "Insight title (3-5 words)",
+      "description": "1-2 sentence explanation"
+    }},
+    {{
+      "title": "Insight title (3-5 words)",
+      "description": "1-2 sentence explanation"
+    }}
+  ],
+  "performance_data": {{
+    "portfolio_value": "Extract from portfolio_data.portfolio_totals.current_value",
+    "weekly_change": "Extract from portfolio_data.portfolio_totals.weekly_pct",
+    "total_return": "Extract from portfolio_data.portfolio_totals.total_pct",
+    "sp500_weekly": "Extract from portfolio_data.benchmarks.sp500.history[-1].weekly_pct",
+    "sp500_total": "Extract from portfolio_data.benchmarks.sp500.history[-1].total_pct",
+    "bitcoin_weekly": "Extract from portfolio_data.benchmarks.bitcoin.history[-1].weekly_pct",
+    "bitcoin_total": "Extract from portfolio_data.benchmarks.bitcoin.history[-1].total_pct",
+    "top_performer": {{"ticker": "Find stock with highest weekly_pct", "change": "percentage"}},
+    "worst_performer": {{"ticker": "Find stock with lowest weekly_pct", "change": "percentage"}}
+  }},
+  "market_context": "1-2 sentence summary of market conditions from blog",
+  "call_to_action_url": "https://quantuminvestor.net/Posts/GenAi-Managed-Stocks-Portfolio-Week-{week_num}.html",
+  "tone": "Describe tone: honest/bullish/bearish/neutral/cautious"
+}}
+
+EXTRACTION RULES:
+1. **Opening paragraph**: 2-3 sentences summarizing weekly performance with exact numbers
+2. **Key insights**: Extract 2-3 main points from "Top Movers" section
+3. **Keep numbers exact**: Use precise percentages from master.json
+4. **Mirror tone**: Match blog post's sentiment (bullish/bearish/neutral)
+5. **No new analysis**: Only condense existing blog content
+6. **Subject line**: Format as "[Emoji] Week X: [%] | [Key Theme]" (under 50 chars)
+7. **Preheader**: Compelling 50-60 char summary for inbox preview
+8. **Format percentages**: Always include +/- sign, 2 decimal places
+
+OUTPUT: Valid JSON only, no markdown formatting or code blocks."""
+    
+    logging.info("Calling Azure OpenAI API", extra={'week': week_num})
+    
+    # Validate configuration before calling API
+    azure_api_key = os.environ.get('AZURE_OPENAI_API_KEY')
+    azure_endpoint = os.environ.get(
+        'AZURE_OPENAI_ENDPOINT',
+        'https://myportfolious2-resource.cognitiveservices.azure.com/'
+    )
+    
+    if not azure_api_key:
+        raise ValueError("AZURE_OPENAI_API_KEY environment variable not set")
+    
+    # Configure for Azure OpenAI
+    from openai import AzureOpenAI
+    client = AzureOpenAI(
+        api_key=azure_api_key,
+        api_version="2024-10-21",
+        azure_endpoint=azure_endpoint
+    )
+    
+    # Define API call function for retry wrapper
+    def call_openai_api():
+        response = client.chat.completions.create(
+            model="gpt-5.1-chat",  # This is the deployment name in Azure
+            messages=[
+                {
+                    "role": "system", 
+                    "content": "You extract newsletter narratives from blog posts. Output valid JSON only, no markdown."
+                },
+                {"role": "user", "content": prompt}
+            ]
+            # Note: GPT-5.1 only supports default temperature (1), custom values not allowed
+        )
+        return response.choices[0].message.content.strip()
+    
+    # Call Azure OpenAI with retry logic
+    try:
+        narrative_json = retry_with_backoff(call_openai_api, max_retries=3)
+        
+        # Remove markdown code fences if present
+        if narrative_json.startswith('```'):
+            narrative_json = re.sub(r'^```(?:json)?\n', '', narrative_json)
+            narrative_json = re.sub(r'\n```$', '', narrative_json)
+            narrative_json = narrative_json.strip()
+        
+    except Exception as e:
+        logging.error(f"Azure OpenAI API error after retries: {e}", extra={'week': week_num}, exc_info=True)
+        raise
+    
+    # Parse to validate JSON
+    try:
+        narrative_data = json.loads(narrative_json)
+    except json.JSONDecodeError as e:
+        logging.error(f"Invalid JSON response from OpenAI: {e}")
+        logging.debug(f"Response: {narrative_json[:500]}")
+        raise
+    
+    # Validate required fields
+    required_fields = [
+        'week_number', 'subject_line', 'preheader', 'opening_paragraph',
+        'key_insights', 'performance_data', 'call_to_action_url'
+    ]
+    missing_fields = [field for field in required_fields if field not in narrative_data]
+    
+    if missing_fields:
+        error_msg = f"AI response missing required fields: {', '.join(missing_fields)}"
+        logging.error(error_msg, extra={'missing_fields': missing_fields})
+        raise ValueError(error_msg)
+    
+    # Validate key_insights structure
+    if not isinstance(narrative_data.get('key_insights'), list):
+        raise ValueError("key_insights must be a list")
+    
+    if len(narrative_data['key_insights']) < 2:
+        logging.warning(
+            f"Only {len(narrative_data['key_insights'])} key insights generated (expected 2-3)",
+            extra={'insight_count': len(narrative_data['key_insights'])}
+        )
+    
+    # Save locally for review
+    output_dir = base_dir / 'newsletters'
+    output_dir.mkdir(exist_ok=True)
+    
+    local_path = output_dir / f'week{week_num}_narrative.json'
+    with open(local_path, 'w', encoding='utf-8') as f:
+        json.dump(narrative_data, f, indent=2)
+    
+    logging.info(
+        f"Narrative generated successfully",
+        extra={
+            'week': week_num,
+            'output_path': str(local_path),
+            'subject_line': narrative_data.get('subject_line', 'N/A'),
+            'tone': narrative_data.get('tone', 'N/A'),
+            'weekly_change': narrative_data.get('performance_data', {}).get('weekly_change', 'N/A')
+        }
+    )
+    
+    return narrative_data
+
+if __name__ == "__main__":
+    try:
+        # Auto-detect latest week or use command-line argument
+        if len(sys.argv) > 1:
+            week = int(sys.argv[1])
+        else:
+            week = get_latest_week_number()
+            logging.info(f"Auto-detected latest week: {week}", extra={'week': week, 'auto_detected': True})
+        
+        narrative = generate_narrative(week)
+        
+        print("\n" + "="*60)
+        print("📋 STAGE 1 COMPLETE")
+        print("="*60)
+        print(f"✅ Narrative JSON created")
+        print(f"📂 Local file: newsletters/week{week}_narrative.json")
+        print("\n🔍 NEXT STEPS:")
+        print(f"1. Review/edit newsletters/week{week}_narrative.json if needed")
+        print(f"2. Run Stage 2: python scripts/generate_newsletter_html.py {week}")
+        
+    except Exception as e:
+        logging.error(f"Script failed: {e}", exc_info=True)
+        sys.exit(1)

@@ -48,23 +48,24 @@ az cognitiveservices account create \
 
 1. Navigate to your Azure OpenAI resource
 2. Click **"Go to Azure OpenAI Studio"**
-3. In Azure OpenAI Studio:
+3. In Azure AI Foundry:
    - Go to **"Deployments"** → **"Create new deployment"**
-   - **Model**: Select `gpt-4` (or `gpt-4-turbo`, `gpt-4o`)
-   - **Deployment name**: `gpt-4.1` (must match the code)
+   - **Model**: Select `gpt-5.1-chat` or `gpt-4o`
+   - **Deployment name**: `gpt-5.1-chat` (must match the code)
    - **Deployment type**: Standard
    - Click **"Create"**
+   - **Note**: GPT-5.1 requires `max_completion_tokens` instead of `max_tokens`
 
 ### Using Azure CLI
 
 ```bash
-# Deploy GPT-4 model
+# Deploy GPT-5.1-chat model
 az cognitiveservices account deployment create \
-  --name MyPortfolio \
+  --name myportfolious2-resource \
   --resource-group MyPortfolioRG \
-  --deployment-name gpt-4.1 \
-  --model-name gpt-4 \
-  --model-version "0613" \
+  --deployment-name gpt-5.1-chat \
+  --model-name gpt-5.1-chat \
+  --model-version "2025-11-13" \
   --model-format OpenAI \
   --sku-capacity 1 \
   --sku-name "Standard"
@@ -74,11 +75,11 @@ az cognitiveservices account deployment create \
 
 ### Using Azure Portal
 
-1. Navigate to your Azure OpenAI resource
+1. Navigate to your Azure AI Foundry resource
 2. Go to **"Keys and Endpoint"** (left menu)
 3. Copy:
    - **KEY 1** (your API key)
-   - **Endpoint** (should be like `https://MyPortfolio.openai.azure.com/`)
+   - **Endpoint** (should be like `https://myportfolious2-resource.cognitiveservices.azure.com/`)
 
 ### Using Azure CLI
 
@@ -99,18 +100,19 @@ az cognitiveservices account show \
 
 The script is already configured for Azure AI Foundry. Verify the endpoint matches your resource:
 
-**File**: `scripts/portfolio_automation.py` (line 102-105)
+**File**: `scripts/portfolio_automation.py` (line 117-121)
 
 ```python
 self.client = OpenAI(
-    base_url="https://MyPortfolio.openai.azure.com/openai/v1/",
+    base_url="https://myportfolious2-resource.cognitiveservices.azure.com/openai/",
     api_key=self.azure_api_key
 )
 ```
 
 **If your resource has a different name**, update the `base_url`:
-- Format: `https://<your-resource-name>.openai.azure.com/openai/v1/`
-- Example: `https://my-custom-name.openai.azure.com/openai/v1/`
+- Format: `https://<your-resource-name>.cognitiveservices.azure.com/openai/`
+- Example: `https://my-custom-name.cognitiveservices.azure.com/openai/`
+- **Note**: Use `.cognitiveservices.azure.com` domain, NOT `.openai.azure.com`
 
 ## Step 5: Set Environment Variables
 
@@ -167,24 +169,24 @@ pip install -r scripts/requirements.txt
 ### Basic Usage
 
 ```bash
-# Run with Alpha Vantage data source (recommended)
-python scripts/portfolio_automation.py --data-source alphavantage
+# Run with AI mode (generates narrative using Azure OpenAI)
+python scripts/portfolio_automation.py --data-source ai
 ```
 
 ### Advanced Options
 
 ```bash
 # Specify week number manually
-python scripts/portfolio_automation.py --data-source alphavantage --week 6
+python scripts/portfolio_automation.py --data-source ai --week 6
 
 # Use a different deployment name
-python scripts/portfolio_automation.py --data-source alphavantage --model gpt-4o
+python scripts/portfolio_automation.py --data-source ai --model gpt-4o
 
 # Override evaluation date
-python scripts/portfolio_automation.py --data-source alphavantage --eval-date 2025-11-15
+python scripts/portfolio_automation.py --data-source ai --eval-date 2025-11-15
 
-# Use AI for data generation (requires Prompt A)
-python scripts/portfolio_automation.py --data-source ai
+# Data-only mode (fetch market data without AI narrative generation)
+python scripts/portfolio_automation.py --data-source data-only
 ```
 
 ## Step 8: GitHub Actions Setup (Optional)
@@ -225,13 +227,13 @@ $env:AZURE_OPENAI_API_KEY="your-api-key"
 
 **Cause**: Deployment name mismatch
 
-**Solution**: Verify deployment name in Azure OpenAI Studio matches the `--model` parameter (default: `gpt-4.1`)
+**Solution**: Verify deployment name in Azure AI Foundry matches the `--model` parameter (default: `gpt-5.1-chat`)
 
 ### Error: "Invalid endpoint"
 
 **Cause**: Wrong endpoint URL in code
 
-**Solution**: Update `base_url` in `portfolio_automation.py` line 103 to match your Azure resource name
+**Solution**: Update `base_url` in `portfolio_automation.py` line 119 to match your Azure resource name. Use the format `https://<resource-name>.cognitiveservices.azure.com/openai/`
 
 ### Error: "Rate limit exceeded"
 

@@ -149,12 +149,12 @@
                             <span class="docs-chip">📊 Alpha Vantage API</span>
                             <span class="docs-chip">📈 Marketstack API</span>
                             <span class="docs-chip">🔗 Finnhub API</span>
-                            <span class="docs-chip">🤖 GPT-4.1</span>
+                            <span class="docs-chip">🤖 GPT-5.1-chat</span>
                         </div>
                         <p class="text-gray-400 text-sm mt-3">
                             Python orchestrates the entire automation pipeline: fetching real-time market data from multiple 
                             financial APIs, calculating portfolio metrics, validating calculations, generating visual components, 
-                            and coordinating AI-driven content creation through Azure OpenAI's GPT-4.1 deployment.
+                            and coordinating AI-driven content creation through Azure OpenAI's GPT-5.1-chat deployment.
                         </p>
 
                         <h3 class="text-xl font-semibold mt-6 mb-3">Frontend & Presentation</h3>
@@ -261,8 +261,8 @@
 
                         <h3 class="text-xl font-semibold mt-6 mb-3">Stage 3: Validation (Prompt A)</h3>
                         <div class="docs-chips-row">
-                            <span class="docs-chip">🤖 GPT-4.1</span>
-                            <span class="docs-chip">🌡️ Temperature: 0.3</span>
+                            <span class="docs-chip">🤖 GPT-5.1-chat</span>
+                            <span class="docs-chip">🌡️ Temperature: 1.0 (default)</span>
                             <span class="docs-chip">✅ Non-Fatal</span>
                             <span class="docs-chip">📝 Validation Report</span>
                             <span class="docs-chip">🔍 Cross-Check</span>
@@ -288,8 +288,8 @@
 
                         <h3 class="text-xl font-semibold mt-6 mb-3">Stage 5A: Narrative (Prompt B)</h3>
                         <div class="docs-chips-row">
-                            <span class="docs-chip">🤖 GPT-4.1</span>
-                            <span class="docs-chip">🌡️ Temperature: 0.7</span>
+                            <span class="docs-chip">🤖 GPT-5.1-chat</span>
+                            <span class="docs-chip">🌡️ Temperature: 1.0 (default)</span>
                             <span class="docs-chip">📝 Prose Content</span>
                             <span class="docs-chip">🔍 SEO Metadata</span>
                             <span class="docs-chip">🎯 ~3000 tokens</span>
@@ -302,8 +302,8 @@
 
                         <h3 class="text-xl font-semibold mt-6 mb-3">Stage 5B: Assembly (Prompt D)</h3>
                         <div class="docs-chips-row">
-                            <span class="docs-chip">🤖 GPT-4.1</span>
-                            <span class="docs-chip">🌡️ Temperature: 0.7</span>
+                            <span class="docs-chip">🤖 GPT-5.1-chat</span>
+                            <span class="docs-chip">🌡️ Temperature: 1.0 (default)</span>
                             <span class="docs-chip">🔒 Hardened CSP</span>
                             <span class="docs-chip">🎨 Template Injection</span>
                             <span class="docs-chip">📊 Visual Embedding</span>
@@ -339,8 +339,8 @@
                             <span class="docs-chip">📊 Deterministic Visuals</span>
                         </div>
                         <p class="text-gray-400 text-sm mt-3">
-                            Specialized prompts (A: Validation, B: Narrative, D: Assembly) enable focused AI behavior. Temperature tuning: 
-                            0.3 for validation consistency, 0.7 for creative narrative. Token optimization extracts minimal data summaries 
+                            Specialized prompts (A: Validation, B: Narrative, D: Assembly) enable focused AI behavior. GPT-5.1 uses default temperature (1.0) 
+                            for consistent, reliable outputs across all stages. Token optimization extracts minimal data summaries 
                             (~75% reduction). Visual generation moved from AI to Python for pixel-perfect consistency. Fallback chains handle 
                             AI failures gracefully (SEO generation) and API cascades (Alpha Vantage → Finnhub → Marketstack).
                         </p>

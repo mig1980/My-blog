@@ -432,6 +432,8 @@ Unsubscribe: {{{{unsubscribe_url}}}}
             plain_text_content=Content("text/plain", text_content)
         )
         
+        # Note: Use Azure OpenAI with max_completion_tokens for GPT-5.1-chat
+        
         # Send via SendGrid
         try:
             response = self.sg.send(message)

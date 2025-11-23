@@ -1,0 +1,56 @@
+name: Generate Newsletter Narrative (Stage 1)
+
+on:
+  workflow_dispatch:
+    inputs:
+      week_number:
+        description: 'Week number (leave empty to auto-detect)'
+        required: false
+        type: string
+
+jobs:
+  generate-narrative:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          cd scripts
+          pip install -r requirements.txt
+      
+      - name: Generate narrative JSON
+        env:
+          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+        run: |
+          cd scripts
+          if [ -n "${{ github.event.inputs.week_number }}" ]; then
+            python generate_newsletter_narrative.py ${{ github.event.inputs.week_number }}
+          else
+            python generate_newsletter_narrative.py
+          fi
+      
+      - name: Upload narrative artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: newsletter-narrative
+          path: newsletters/week*_narrative.json
+          retention-days: 30
+      
+      - name: Summary
+        run: |
+          echo "✅ Newsletter narrative generated successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📂 **Artifact**: Narrative JSON uploaded to GitHub Actions artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next Steps:" >> $GITHUB_STEP_SUMMARY
+          echo "1. Review narrative JSON in artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "2. Edit locally if needed" >> $GITHUB_STEP_SUMMARY
+          echo "3. Run Stage 2 workflow: Generate Newsletter HTML" >> $GITHUB_STEP_SUMMARY

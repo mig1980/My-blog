@@ -18,9 +18,10 @@ export AZURE_OPENAI_API_KEY="your-azure-openai-api-key"
 
 ### Azure OpenAI Configuration
 
-- **Endpoint**: `https://MyPortfolio.openai.azure.com/openai/v1/`
-- **Deployment**: `gpt-4.1`
+- **Endpoint**: `https://myportfolious2-resource.cognitiveservices.azure.com/openai/`
+- **Deployment**: `gpt-5.1-chat`
 - **API Version**: `2024-05-01-preview`
+- **Note**: GPT-5.1-chat requires `max_completion_tokens` parameter instead of `max_tokens`
 
 ### Installation
 
@@ -32,16 +33,16 @@ pip install -r scripts/requirements.txt
 
 ### Usage
 
-Run automation with default settings (uses gpt-4.1 deployment):
+Run automation with default settings (uses gpt-5.1-chat deployment):
 
 ```bash
-python scripts/portfolio_automation.py --data-source alphavantage
+python scripts/portfolio_automation.py --data-source ai
 ```
 
 Use a different deployment:
 
 ```bash
-python scripts/portfolio_automation.py --model gpt-4o --data-source alphavantage
+python scripts/portfolio_automation.py --model gpt-4o --data-source ai
 ```
 
 ### GitHub Actions
@@ -55,7 +56,7 @@ Update your GitHub Actions secrets:
 ### Benefits
 
 - ✅ **Higher rate limits**: No more HTTP 429 errors
-- ✅ **Temperature control**: Full support for 0.0 to 2.0
+- ⚠️ **Temperature control**: GPT-5.1 only supports default temperature (1.0)
 - ✅ **Larger context**: Support for longer prompts and responses
 - ✅ **Better reliability**: Enterprise-grade Azure infrastructure
 - ✅ **Cost control**: Pay-per-use with predictable pricing
@@ -65,7 +66,7 @@ Update your GitHub Actions secrets:
 If you get authentication errors:
 - Verify `AZURE_OPENAI_API_KEY` is set correctly
 - Check that your Azure OpenAI resource is active
-- Ensure the deployment name matches (`gpt-4.1`)
+- Ensure the deployment name matches (`gpt-5.1-chat`)
 
 If you get endpoint errors:
 - Verify the endpoint URL matches your Azure resource

@@ -256,16 +256,50 @@
   const subscribeButton = document.getElementById('subscribeButton');
   const subscribeMessage = document.getElementById('subscribeMessage');
 
-  // Email validation regex (RFC 5322 simplified)
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  // Email validation constants (synchronized with backend validation.py)
+  const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;  // Basic RFC 5322 format
+  const MAX_EMAIL_LENGTH = 254;  // RFC 5321 maximum email address length
+  const MIN_EMAIL_LENGTH = 6;    // Minimum reasonable email (a@b.co)
 
   /**
-   * Validates email format
+   * Validates email format and length (matches backend validation).
    * @param {string} email - Email address to validate
-   * @returns {boolean} - True if valid, false otherwise
+   * @returns {{isValid: boolean, error: string}} - Validation result
+   */
+  function validateEmail(email) {
+    // Strip whitespace
+    email = email.trim();
+    
+    // Check if empty
+    if (!email) {
+      return { isValid: false, error: 'Email is required' };
+    }
+    
+    // Check minimum length
+    if (email.length < MIN_EMAIL_LENGTH) {
+      return { isValid: false, error: 'Email address is too short' };
+    }
+    
+    // Check maximum length
+    if (email.length > MAX_EMAIL_LENGTH) {
+      return { isValid: false, error: 'Email address is too long' };
+    }
+    
+    // Check format
+    if (!EMAIL_REGEX.test(email)) {
+      return { isValid: false, error: 'Invalid email format' };
+    }
+    
+    return { isValid: true, error: '' };
+  }
+
+  /**
+   * Simple boolean check if email is valid
+   * @param {string} email - Email address to validate
+   * @returns {boolean} - True if valid
    */
   function isValidEmail(email) {
-    return emailRegex.test(email);
+    return validateEmail(email).isValid;
   }
 
   /**
@@ -366,15 +400,10 @@
 
     const email = emailInput.value.trim();
 
-    // Validate email
-    if (!email) {
-      showInputError('Please enter your email address');
-      emailInput.focus();
-      return;
-    }
-
-    if (!isValidEmail(email)) {
-      showInputError('Please enter a valid email address');
+    // Validate email using centralized validation
+    const validation = validateEmail(email);
+    if (!validation.isValid) {
+      showInputError(validation.error);
       emailInput.focus();
       return;
     }
@@ -430,8 +459,11 @@
   // Validate on blur
   emailInput.addEventListener('blur', function() {
     const email = emailInput.value.trim();
-    if (email && !isValidEmail(email)) {
-      showInputError('Please enter a valid email address');
+    if (email) {
+      const validation = validateEmail(email);
+      if (!validation.isValid) {
+        showInputError(validation.error);
+      }
     }
   });
 
