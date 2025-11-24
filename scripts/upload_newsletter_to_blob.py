@@ -13,63 +13,13 @@ Usage:
 import os
 import sys
 import logging
-import time
 from pathlib import Path
-from typing import Optional
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
-
-
-def retry_with_backoff(max_retries=3, initial_delay=1.0, backoff_factor=2.0):
-    """
-    Decorator that implements exponential backoff retry logic.
-    Consistent with generate_newsletter_narrative.py and weekly_job.py patterns.
-    
-    Args:
-        max_retries: Maximum number of retry attempts (default: 3)
-        initial_delay: Initial delay in seconds (default: 1.0)
-        backoff_factor: Multiplier for delay on each retry (default: 2.0)
-    
-    Returns:
-        Decorator function that wraps the target function with retry logic
-    """
-    def decorator(func):
-        def wrapper(*args, **kwargs):
-            delay = initial_delay
-            last_exception = None
-            
-            for attempt in range(max_retries):
-                try:
-                    return func(*args, **kwargs)
-                except (ValueError, FileNotFoundError, KeyError):
-                    # Don't retry on validation errors or missing config
-                    raise
-                except Exception as e:
-                    last_exception = e
-                    error_type = type(e).__name__
-                    
-                    if attempt < max_retries - 1:
-                        logging.warning(
-                            f"{func.__name__} attempt {attempt + 1}/{max_retries} failed: {error_type}: {str(e)}. "
-                            f"Retrying in {delay}s...",
-                            extra={'attempt': attempt + 1, 'error_type': error_type}
-                        )
-                        time.sleep(delay)
-                        delay *= backoff_factor
-                    else:
-                        logging.error(
-                            f"{func.__name__} failed after {max_retries} attempts",
-                            extra={'error_type': error_type},
-                            exc_info=True
-                        )
-            
-            raise last_exception
-        return wrapper
-    return decorator
 
 
 def get_latest_week_number() -> int:
@@ -111,33 +61,26 @@ def upload_newsletter_to_blob(week_num: int, overwrite: bool = False) -> dict:
         ValueError: If STORAGE_CONNECTION_STRING not configured
         Exception: If upload fails after retries
     """
-    logging.info(f"Uploading newsletter for Week {week_num}", extra={'week': week_num})
+    logging.info(f"Uploading newsletter for Week {week_num}")
     
     # Get connection string
     connection_string = os.environ.get('STORAGE_CONNECTION_STRING')
     if not connection_string:
-        error_msg = "STORAGE_CONNECTION_STRING environment variable not set"
-        logging.error(error_msg)
-        raise ValueError(error_msg)
+        raise ValueError("STORAGE_CONNECTION_STRING environment variable not set")
     
     # Validate local file exists
     base_dir = Path(__file__).parent.parent
     local_path = base_dir / 'newsletters' / f'week{week_num}_newsletter.html'
     
     if not local_path.exists():
-        error_msg = f"Newsletter HTML not found: {local_path}"
-        logging.error(error_msg, extra={'week': week_num, 'path': str(local_path)})
-        raise FileNotFoundError(error_msg)
+        raise FileNotFoundError(f"Newsletter HTML not found: {local_path}")
     
     # Read HTML content
     with open(local_path, 'r', encoding='utf-8') as f:
         html_content = f.read()
     
     file_size = len(html_content)
-    logging.info(
-        f"Read local file: {file_size} bytes",
-        extra={'week': week_num, 'size_bytes': file_size, 'path': str(local_path)}
-    )
+    logging.info(f"Read {file_size:,} bytes from {local_path.name}")
     
     # Validate HTML structure
     if not html_content.strip():
@@ -154,55 +97,33 @@ def upload_newsletter_to_blob(week_num: int, overwrite: bool = False) -> dict:
     try:
         # Import Azure SDK
         from azure.storage.blob import BlobServiceClient, ContentSettings
-        from azure.core.exceptions import ServiceRequestError, HttpResponseError
         
         # Create BlobServiceClient
         blob_service_client = BlobServiceClient.from_connection_string(connection_string)
         blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_name)
         
-        logging.info(
-            f"Uploading to Azure Blob Storage: {container_name}/{blob_name}",
-            extra={'week': week_num, 'container': container_name, 'blob': blob_name}
-        )
+        logging.info(f"Uploading to {container_name}/{blob_name}")
         
-        # Check if blob already exists (with retry for transient network errors)
-        @retry_with_backoff(max_retries=3, initial_delay=0.5)
-        def check_blob_exists():
-            return blob_client.exists()
-        
-        blob_exists = check_blob_exists()
+        # Check if blob already exists
+        blob_exists = blob_client.exists()
         
         if blob_exists and not overwrite:
-            error_msg = (
+            raise ValueError(
                 f"Blob already exists: {container_name}/{blob_name}\n"
                 f"Use --overwrite flag to replace existing blob"
             )
-            logging.error(error_msg, extra={'week': week_num, 'blob': blob_name})
-            raise ValueError(error_msg)
         
-        # Upload with retry logic
-        @retry_with_backoff(max_retries=3, initial_delay=1.0)
-        def upload_blob():
-            return blob_client.upload_blob(
-                html_content,
-                overwrite=overwrite,
-                content_settings=ContentSettings(content_type='text/html; charset=utf-8')
-            )
-        
-        result = upload_blob()
+        # Upload blob
+        blob_client.upload_blob(
+            html_content,
+            overwrite=overwrite,
+            content_settings=ContentSettings(content_type='text/html; charset=utf-8')
+        )
         
         # Get blob URL
         blob_url = blob_client.url
         
-        logging.info(
-            f"Successfully uploaded newsletter to blob storage ({file_size} bytes)",
-            extra={
-                'week': week_num,
-                'blob_url': blob_url,
-                'size_bytes': file_size,
-                'overwritten': blob_exists
-            }
-        )
+        logging.info(f"Upload complete: {file_size:,} bytes → {blob_name}")
         
         return {
             'status': 'success',
@@ -214,32 +135,13 @@ def upload_newsletter_to_blob(week_num: int, overwrite: bool = False) -> dict:
             'overwritten': blob_exists
         }
         
-    except ImportError as e:
-        error_msg = (
+    except ImportError:
+        raise ImportError(
             "Azure Storage SDK not installed. Install with:\n"
             "pip install azure-storage-blob"
         )
-        logging.error(error_msg, exc_info=True)
-        raise ImportError(error_msg)
-    
-    except (ServiceRequestError, HttpResponseError) as e:
-        # Azure-specific errors (should be caught by retry logic, but handle here as fallback)
-        status = getattr(e, 'status_code', 'unknown')
-        error_msg = f"Azure Blob Storage error: {type(e).__name__} (status: {status}): {str(e)}"
-        logging.error(
-            error_msg,
-            extra={'week': week_num, 'container': container_name, 'blob': blob_name, 'status_code': status},
-            exc_info=True
-        )
-        raise IOError(error_msg)
-    
     except Exception as e:
-        error_msg = f"Failed to upload newsletter to blob storage: {type(e).__name__}: {str(e)}"
-        logging.error(
-            error_msg,
-            extra={'week': week_num, 'container': container_name, 'blob': blob_name},
-            exc_info=True
-        )
+        logging.error(f"Upload failed: {type(e).__name__}: {e}")
         raise
 
 
@@ -259,7 +161,7 @@ def resolve_week_number(args) -> int:
     """
     if args.latest or (args.week and args.week.lower() == '--latest'):
         week_num = get_latest_week_number()
-        logging.info(f"Auto-detected latest week: {week_num}", extra={'week': week_num, 'auto_detected': True})
+        logging.info(f"Auto-detected latest week: {week_num}")
         return week_num
     elif args.week:
         try:

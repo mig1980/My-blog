@@ -50,19 +50,11 @@ def retry_with_backoff(func, max_retries=3, initial_delay=1.0, backoff_factor=2.
                 raise
             
             if attempt < max_retries - 1:
-                logging.warning(
-                    f"Attempt {attempt + 1}/{max_retries} failed: {error_type}: {str(e)}. "
-                    f"Retrying in {delay}s...",
-                    extra={'attempt': attempt + 1, 'error_type': error_type}
-                )
+                logging.warning(f"Attempt {attempt + 1}/{max_retries} failed: {error_type}: {e}. Retrying in {delay}s...")
                 time.sleep(delay)
                 delay *= backoff_factor
             else:
-                logging.error(
-                    f"All {max_retries} attempts failed",
-                    extra={'error_type': error_type},
-                    exc_info=True
-                )
+                logging.error(f"All {max_retries} attempts failed: {error_type}")
     
     raise last_exception
 
@@ -163,7 +155,7 @@ def generate_narrative(week_num: int) -> Dict[str, Any]:
     Generate newsletter narrative from blog post and portfolio data.
     Returns narrative JSON and uploads to Azure Blob Storage.
     """
-    logging.info(f"Generating narrative for Week {week_num}", extra={'week': week_num})
+    logging.info(f"Generating narrative for Week {week_num}")
     
     # Paths
     base_dir = Path(__file__).parent.parent
@@ -277,38 +269,31 @@ CRITICAL JSON FORMATTING REQUIREMENTS:
 
 OUTPUT: Valid JSON only, no markdown formatting or code blocks. Triple-check JSON syntax before responding."""
     
-    logging.info("Calling Azure OpenAI API", extra={'week': week_num})
+    logging.info("Calling Azure OpenAI API")
     
-    # Validate configuration before calling API
+    # Configure Azure OpenAI client
     azure_api_key = os.environ.get('AZURE_OPENAI_API_KEY')
-    azure_endpoint = os.environ.get(
-        'AZURE_OPENAI_ENDPOINT',
-        'https://myportfolious2-resource.cognitiveservices.azure.com/'
-    )
-    
     if not azure_api_key:
         raise ValueError("AZURE_OPENAI_API_KEY environment variable not set")
     
-    # Configure for Azure OpenAI
     from openai import AzureOpenAI
     client = AzureOpenAI(
         api_key=azure_api_key,
         api_version="2024-10-21",
-        azure_endpoint=azure_endpoint
+        azure_endpoint=os.environ.get(
+            'AZURE_OPENAI_ENDPOINT',
+            'https://myportfolious2-resource.cognitiveservices.azure.com/'
+        )
     )
     
-    # Define API call function for retry wrapper
+    # Call Azure OpenAI API
     def call_openai_api():
         response = client.chat.completions.create(
-            model="gpt-5.1-chat",  # This is the deployment name in Azure
+            model=os.environ.get('AZURE_OPENAI_DEPLOYMENT', 'gpt-5.1-chat'),
             messages=[
-                {
-                    "role": "system", 
-                    "content": "You extract newsletter narratives from blog posts. Output valid JSON only, no markdown."
-                },
+                {"role": "system", "content": "You extract newsletter narratives from blog posts. Output valid JSON only, no markdown."},
                 {"role": "user", "content": prompt}
             ]
-            # Note: GPT-5.1 only supports default temperature (1), custom values not allowed
         )
         return response.choices[0].message.content.strip()
     
@@ -323,7 +308,7 @@ OUTPUT: Valid JSON only, no markdown formatting or code blocks. Triple-check JSO
             narrative_json = narrative_json.strip()
         
     except Exception as e:
-        logging.error(f"Azure OpenAI API error after retries: {e}", extra={'week': week_num}, exc_info=True)
+        logging.error(f"Azure OpenAI API error: {e}")
         raise
     
     # Parse to validate JSON
@@ -342,19 +327,14 @@ OUTPUT: Valid JSON only, no markdown formatting or code blocks. Triple-check JSO
     missing_fields = [field for field in required_fields if field not in narrative_data]
     
     if missing_fields:
-        error_msg = f"AI response missing required fields: {', '.join(missing_fields)}"
-        logging.error(error_msg, extra={'missing_fields': missing_fields})
-        raise ValueError(error_msg)
+        raise ValueError(f"AI response missing required fields: {', '.join(missing_fields)}")
     
     # Validate key_insights structure
     if not isinstance(narrative_data.get('key_insights'), list):
         raise ValueError("key_insights must be a list")
     
     if len(narrative_data['key_insights']) < 2:
-        logging.warning(
-            f"Only {len(narrative_data['key_insights'])} key insights generated (expected 2-3)",
-            extra={'insight_count': len(narrative_data['key_insights'])}
-        )
+        logging.warning(f"Only {len(narrative_data['key_insights'])} key insights generated (expected 2-3)")
     
     # Save locally for review
     output_dir = base_dir / 'newsletters'
@@ -364,16 +344,7 @@ OUTPUT: Valid JSON only, no markdown formatting or code blocks. Triple-check JSO
     with open(local_path, 'w', encoding='utf-8') as f:
         json.dump(narrative_data, f, indent=2)
     
-    logging.info(
-        f"Narrative generated successfully",
-        extra={
-            'week': week_num,
-            'output_path': str(local_path),
-            'subject_line': narrative_data.get('subject_line', 'N/A'),
-            'tone': narrative_data.get('tone', 'N/A'),
-            'weekly_change': narrative_data.get('performance_data', {}).get('weekly_change', 'N/A')
-        }
-    )
+    logging.info(f"Narrative generated: {narrative_data.get('subject_line', 'N/A')}")
     
     return narrative_data
 
@@ -384,7 +355,7 @@ if __name__ == "__main__":
             week = int(sys.argv[1])
         else:
             week = get_latest_week_number()
-            logging.info(f"Auto-detected latest week: {week}", extra={'week': week, 'auto_detected': True})
+            logging.info(f"Auto-detected latest week: {week}")
         
         narrative = generate_narrative(week)
         
