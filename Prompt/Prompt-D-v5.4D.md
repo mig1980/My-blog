@@ -171,6 +171,27 @@ Footer: `<div data-template="footer" data-root-path="../"></div>`
 
 ---
 
+## CRITICAL HTML FORMATTING REQUIREMENTS
+
+**Your HTML output MUST follow these strict rules:**
+
+- Your response MUST start with `<!DOCTYPE html>` and end with `</html>`
+- Verify all opening tags have matching closing tags (e.g., `<div>` must have `</div>`)
+- Use double quotes for all HTML attributes
+- Ensure proper nesting - no overlapping tags (e.g., `<div><p></div></p>` is INVALID)
+- All `<script>` and `<style>` tags must have closing tags
+- Escape special characters in content: `<` as `&lt;`, `>` as `&gt;`, `&` as `&amp;` (except in actual HTML tags)
+- Check that every opening quote in attributes has a matching closing quote
+- Do not include markdown code fences (``` html) or explanatory text outside the HTML
+- Validate the complete structure: `<html><head>...</head><body>...</body></html>`
+- All required elements must be present: `<head>`, `<body>`, `<article>`, hero block, TLDR strip, narrative block
+- The `<body>` tag must include `data-theme="default"` attribute
+- Hero block order is MANDATORY: date → title → image (never reorder)
+
+**Triple-check HTML structure before responding. Malformed HTML will break the published page.**
+
+---
+
 ## OUTPUT FILE
 
 You must produce one full HTML file:
@@ -181,4 +202,4 @@ This file must be ready to drop into `/Posts/` on the static site with no furthe
 
 Final human message:
 
-> **“Prompt D completed — final HTML ready.”**
+> **"Prompt D completed — final HTML ready."**

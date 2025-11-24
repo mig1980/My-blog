@@ -176,6 +176,26 @@ You must also output a `seo.json` object with:
 
 ---
 
+## CRITICAL JSON FORMATTING REQUIREMENTS
+
+**Your seo.json output MUST follow these strict rules:**
+
+- Your response MUST be valid, parseable JSON
+- Use double quotes for all strings and property names
+- Ensure all arrays end with ] and objects end with }
+- Do not add trailing commas after the last item in arrays or objects
+- Verify all opening brackets { [ have matching closing brackets } ]
+- All nested objects (jsonLd.blogPosting, jsonLd.breadcrumbList) must be complete with both opening and closing braces
+- Check that every opening quote has a matching closing quote
+- Escape any quotes within string values using \"
+- Do not include any text before or after the JSON object
+- All URL values must be valid strings without line breaks
+- All date values must be valid ISO 8601 format strings
+
+**Triple-check JSON syntax before responding. Invalid JSON will cause the automation pipeline to fail.**
+
+---
+
 ## OUTPUT FILES
 
 Prompt B outputs:

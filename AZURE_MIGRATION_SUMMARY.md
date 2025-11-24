@@ -64,8 +64,8 @@
 
 ```powershell
 # Azure OpenAI (for portfolio_automation.py)
-$env:AZURE_OPENAI_API_KEY="g8hJ3cNQ1tnWI7dHYBowpbLaoRZUB5boIyGKEETDe1prmhd2bhdBJQQJ99BKACHYHv6XJ3w3AAAAACOGlccQ"
-
+$env:AZURE_OPENAI_API_KEY=""
+"
 # Market data APIs
 $env:ALPHAVANTAGE_API_KEY="your-alphavantage-key"
 $env:FINNHUB_API_KEY="your-finnhub-key"

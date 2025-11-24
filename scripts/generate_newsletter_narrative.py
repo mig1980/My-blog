@@ -239,7 +239,13 @@ OUTPUT FORMAT (JSON):
     "top_performer": {{"ticker": "Find stock with highest weekly_pct", "change": "percentage"}},
     "worst_performer": {{"ticker": "Find stock with lowest weekly_pct", "change": "percentage"}}
   }},
-  "market_context": "1-2 sentence summary of market conditions from blog",
+  "market_context": "2-3 sentences: (1) Current market conditions from blog, (2) Market expectations for the next 1-3 weeks based on blog analysis and portfolio positioning",
+  "benchmark_comparison": {{
+    "portfolio_weekly": "Extract from portfolio_data.portfolio_totals.weekly_pct",
+    "sp500_weekly": "Extract from portfolio_data.benchmarks.sp500.history[-1].weekly_pct",
+    "bitcoin_weekly": "Extract from portfolio_data.benchmarks.bitcoin.history[-1].weekly_pct",
+    "summary": "1-2 sentences comparing the GenAi portfolio's weekly performance against S&P 500 and Bitcoin benchmarks"
+  }},
   "call_to_action_url": "https://quantuminvestor.net/Posts/GenAi-Managed-Stocks-Portfolio-Week-{week_num}.html",
   "tone": "Describe tone: honest/bullish/bearish/neutral/cautious"
 }}
@@ -253,8 +259,23 @@ EXTRACTION RULES:
 6. **Subject line**: Format as "[Emoji] Week X: [%] | [Key Theme]" (under 50 chars)
 7. **Preheader**: Compelling 50-60 char summary for inbox preview
 8. **Format percentages**: Always include +/- sign, 2 decimal places
+9. **CRITICAL - Portfolio Composition**: The portfolio contains ONLY STOCKS. S&P 500 and Bitcoin are BENCHMARK COMPARISONS for performance tracking, NOT portfolio holdings. Do not refer to "all three assets" or imply the portfolio holds Bitcoin or S&P 500 ETFs. Correct phrasing: "The portfolio declined X% while the S&P 500 fell Y% and Bitcoin dropped Z%" or "The stock portfolio underperformed/outperformed the S&P 500 benchmark."
+10. **Market Context with Forward Outlook**: Extract BOTH (a) current market conditions from the blog's analysis, AND (b) forward-looking expectations for the next 1-3 weeks based on the blog's discussion of trends, positioning, or anticipated catalysts. Look for phrases about upcoming events, momentum continuation/reversal, sector rotation expectations, or risk factors mentioned in the blog.
+11. **Benchmark Comparison Section**: Always include a benchmark_comparison object with exact weekly percentages for the GenAi portfolio, S&P 500, and Bitcoin. Add a 1-2 sentence summary comparing the portfolio's performance against both benchmarks (e.g., "The portfolio underperformed both benchmarks this week" or "The portfolio outperformed the S&P 500 but lagged Bitcoin").
 
-OUTPUT: Valid JSON only, no markdown formatting or code blocks."""
+CRITICAL JSON FORMATTING REQUIREMENTS:
+- Your response MUST be valid, parseable JSON
+- Use double quotes for all strings and property names
+- Ensure all arrays end with ] and objects end with }}
+- Do not add trailing commas after the last item in arrays or objects
+- Verify all opening brackets {{ [ have matching closing brackets }} ]
+- Each key_insights item must be a complete object with both "title" and "description" properties
+- All numeric values should be numbers, not strings (unless specified as strings in the format)
+- Check that every opening quote has a matching closing quote
+- Escape any quotes within string values using \"
+- Do not include any text before or after the JSON object
+
+OUTPUT: Valid JSON only, no markdown formatting or code blocks. Triple-check JSON syntax before responding."""
     
     logging.info("Calling Azure OpenAI API", extra={'week': week_num})
     
