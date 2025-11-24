@@ -22,80 +22,80 @@ logging.basicConfig(
 def retry_with_backoff(func, max_retries=3, initial_delay=1.0, backoff_factor=2.0):
     """
     Retry a function with exponential backoff for transient failures.
-    
+
     Args:
         func: Function to execute
         max_retries: Maximum number of retry attempts
         initial_delay: Initial delay in seconds
         backoff_factor: Multiplier for delay on each retry
-        
+
     Returns:
         Function result
-        
+
     Raises:
         Exception: If all retries are exhausted
     """
     delay = initial_delay
     last_exception = None
-    
+
     for attempt in range(max_retries):
         try:
             return func()
         except Exception as e:
             last_exception = e
             error_type = type(e).__name__
-            
+
             # Don't retry on validation errors or missing config
             if error_type in ['ValueError', 'FileNotFoundError', 'KeyError']:
                 raise
-            
+
             if attempt < max_retries - 1:
                 logging.warning(f"Attempt {attempt + 1}/{max_retries} failed: {error_type}: {e}. Retrying in {delay}s...")
                 time.sleep(delay)
                 delay *= backoff_factor
             else:
                 logging.error(f"All {max_retries} attempts failed: {error_type}")
-    
+
     raise last_exception
 
 def get_latest_week_number() -> int:
     """Auto-detect latest week from Posts directory"""
     posts_dir = Path(__file__).parent.parent / 'Posts'
-    
+
     if not posts_dir.exists():
         raise FileNotFoundError(f"Posts directory not found: {posts_dir}")
-    
+
     week_numbers = []
     pattern = re.compile(r'GenAi-Managed-Stocks-Portfolio-Week-(\d+)\.html')
-    
+
     for file in posts_dir.glob('GenAi-Managed-Stocks-Portfolio-Week-*.html'):
         match = pattern.match(file.name)
         if match:
             week_numbers.append(int(match.group(1)))
-    
+
     if not week_numbers:
         raise ValueError("No weekly blog posts found in Posts directory")
-    
+
     return max(week_numbers)
 
 def extract_blog_sections(html_content: str) -> Dict[str, str]:
     """
     Extract narrative sections from blog post HTML.
-    
+
     Args:
         html_content: Raw HTML content of blog post
-        
+
     Returns:
         Dictionary with 'opening', 'top_movers', 'portfolio_progress' sections
     """
     soup = BeautifulSoup(html_content, 'html.parser')
-    
+
     sections = {
         'opening': '',
         'top_movers': '',
         'portfolio_progress': ''
     }
-    
+
     # Extract opening paragraph (usually has class text-xl or first p after h1)
     opening = soup.find('p', class_='text-xl')
     if opening:
@@ -107,7 +107,7 @@ def extract_blog_sections(html_content: str) -> Dict[str, str]:
             sections['opening'] = first_p.get_text(strip=True)
         else:
             logging.warning("No opening paragraph found in blog post")
-    
+
     # Extract "Top Movers" section
     found_top_movers = False
     for heading in soup.find_all(['h2', 'h3']):
@@ -124,10 +124,10 @@ def extract_blog_sections(html_content: str) -> Dict[str, str]:
             sections['top_movers'] = ' '.join(paragraphs)
             found_top_movers = True
             break
-    
+
     if not found_top_movers:
         logging.warning("'Top Movers' section not found in blog post")
-    
+
     # Extract "Portfolio Progress" section
     found_portfolio_progress = False
     for heading in soup.find_all(['h2', 'h3']):
@@ -144,10 +144,10 @@ def extract_blog_sections(html_content: str) -> Dict[str, str]:
             sections['portfolio_progress'] = ' '.join(paragraphs)
             found_portfolio_progress = True
             break
-    
+
     if not found_portfolio_progress:
         logging.warning("'Portfolio Progress' section not found in blog post")
-    
+
     return sections
 
 def generate_narrative(week_num: int) -> Dict[str, Any]:
@@ -156,29 +156,29 @@ def generate_narrative(week_num: int) -> Dict[str, Any]:
     Returns narrative JSON and uploads to Azure Blob Storage.
     """
     logging.info(f"Generating narrative for Week {week_num}")
-    
+
     # Paths
     base_dir = Path(__file__).parent.parent
     data_path = base_dir / f'Data/W{week_num}/master.json'
     blog_path = base_dir / f'Posts/GenAi-Managed-Stocks-Portfolio-Week-{week_num}.html'
-    
+
     # Validate files exist
     if not data_path.exists():
         raise FileNotFoundError(f"Data file not found: {data_path}")
     if not blog_path.exists():
         raise FileNotFoundError(f"Blog post not found: {blog_path}")
-    
+
     # Load portfolio data
     with open(data_path, 'r', encoding='utf-8') as f:
         portfolio_data = json.load(f)
-    
+
     # Load blog post HTML
     with open(blog_path, 'r', encoding='utf-8') as f:
         blog_html = f.read()
-    
+
     # Extract sections
     sections = extract_blog_sections(blog_html)
-    
+
     # Prepare AI prompt
     prompt = f"""You are analyzing a weekly blog post about an AI-managed stock portfolio to extract newsletter content.
 
@@ -268,14 +268,14 @@ CRITICAL JSON FORMATTING REQUIREMENTS:
 - Do not include any text before or after the JSON object
 
 OUTPUT: Valid JSON only, no markdown formatting or code blocks. Triple-check JSON syntax before responding."""
-    
+
     logging.info("Calling Azure OpenAI API")
-    
+
     # Configure Azure OpenAI client
     azure_api_key = os.environ.get('AZURE_OPENAI_API_KEY')
     if not azure_api_key:
         raise ValueError("AZURE_OPENAI_API_KEY environment variable not set")
-    
+
     from openai import AzureOpenAI
     client = AzureOpenAI(
         api_key=azure_api_key,
@@ -285,7 +285,7 @@ OUTPUT: Valid JSON only, no markdown formatting or code blocks. Triple-check JSO
             'https://myportfolious2-resource.cognitiveservices.azure.com/'
         )
     )
-    
+
     # Call Azure OpenAI API
     def call_openai_api():
         response = client.chat.completions.create(
@@ -296,21 +296,21 @@ OUTPUT: Valid JSON only, no markdown formatting or code blocks. Triple-check JSO
             ]
         )
         return response.choices[0].message.content.strip()
-    
+
     # Call Azure OpenAI with retry logic
     try:
         narrative_json = retry_with_backoff(call_openai_api, max_retries=3)
-        
+
         # Remove markdown code fences if present
         if narrative_json.startswith('```'):
             narrative_json = re.sub(r'^```(?:json)?\n', '', narrative_json)
             narrative_json = re.sub(r'\n```$', '', narrative_json)
             narrative_json = narrative_json.strip()
-        
+
     except Exception as e:
         logging.error(f"Azure OpenAI API error: {e}")
         raise
-    
+
     # Parse to validate JSON
     try:
         narrative_data = json.loads(narrative_json)
@@ -318,34 +318,34 @@ OUTPUT: Valid JSON only, no markdown formatting or code blocks. Triple-check JSO
         logging.error(f"Invalid JSON response from OpenAI: {e}")
         logging.debug(f"Response: {narrative_json[:500]}")
         raise
-    
+
     # Validate required fields
     required_fields = [
         'week_number', 'subject_line', 'preheader', 'opening_paragraph',
         'key_insights', 'performance_data', 'call_to_action_url'
     ]
     missing_fields = [field for field in required_fields if field not in narrative_data]
-    
+
     if missing_fields:
         raise ValueError(f"AI response missing required fields: {', '.join(missing_fields)}")
-    
+
     # Validate key_insights structure
     if not isinstance(narrative_data.get('key_insights'), list):
         raise ValueError("key_insights must be a list")
-    
+
     if len(narrative_data['key_insights']) < 2:
         logging.warning(f"Only {len(narrative_data['key_insights'])} key insights generated (expected 2-3)")
-    
+
     # Save locally for review
     output_dir = base_dir / 'newsletters'
     output_dir.mkdir(exist_ok=True)
-    
+
     local_path = output_dir / f'week{week_num}_narrative.json'
     with open(local_path, 'w', encoding='utf-8') as f:
         json.dump(narrative_data, f, indent=2)
-    
+
     logging.info(f"Narrative generated: {narrative_data.get('subject_line', 'N/A')}")
-    
+
     return narrative_data
 
 if __name__ == "__main__":
@@ -356,9 +356,9 @@ if __name__ == "__main__":
         else:
             week = get_latest_week_number()
             logging.info(f"Auto-detected latest week: {week}")
-        
+
         narrative = generate_narrative(week)
-        
+
         print("\n" + "="*60)
         print("📋 STAGE 1 COMPLETE")
         print("="*60)
@@ -367,7 +367,7 @@ if __name__ == "__main__":
         print("\n🔍 NEXT STEPS:")
         print(f"1. Review/edit newsletters/week{week}_narrative.json if needed")
         print(f"2. Run Stage 2: python scripts/generate_newsletter_html.py {week}")
-        
+
     except Exception as e:
         logging.error(f"Script failed: {e}", exc_info=True)
         sys.exit(1)

@@ -1,8 +1,8 @@
 <!-- Email Subscribe Form Component -->
-<!-- 
+<!--
   This form collects email addresses and submits them to an Azure Function endpoint.
   Replace 'YOUR_AZURE_FUNCTION_URL' with your actual Azure Function HTTP trigger URL.
-  
+
   Usage: Include this snippet anywhere in your blog pages where you want a subscription form.
 -->
 
@@ -220,11 +220,11 @@
 
   <form id="subscribeForm" class="subscribe-form" novalidate aria-label="Email subscription form">
     <div class="subscribe-input-group">
-      <input 
-        type="email" 
-        id="emailInput" 
-        name="email" 
-        class="subscribe-input" 
+      <input
+        type="email"
+        id="emailInput"
+        name="email"
+        class="subscribe-input"
         placeholder="your@email.com"
         required
         autocomplete="email"
@@ -269,27 +269,27 @@
   function validateEmail(email) {
     // Strip whitespace
     email = email.trim();
-    
+
     // Check if empty
     if (!email) {
       return { isValid: false, error: 'Email is required' };
     }
-    
+
     // Check minimum length
     if (email.length < MIN_EMAIL_LENGTH) {
       return { isValid: false, error: 'Email address is too short' };
     }
-    
+
     // Check maximum length
     if (email.length > MAX_EMAIL_LENGTH) {
       return { isValid: false, error: 'Email address is too long' };
     }
-    
+
     // Check format
     if (!EMAIL_REGEX.test(email)) {
       return { isValid: false, error: 'Invalid email format' };
     }
-    
+
     return { isValid: true, error: '' };
   }
 
@@ -393,7 +393,7 @@
    */
   async function handleSubmit(e) {
     e.preventDefault();
-    
+
     // Clear previous messages
     clearInputError();
     hideMessage();
@@ -413,13 +413,13 @@
 
     try {
       const result = await submitEmail(email);
-      
+
       // Success
       showMessage(
         result.message || 'Thank you for subscribing! Check your inbox for confirmation.',
         'success'
       );
-      
+
       // Reset form
       form.reset();
 

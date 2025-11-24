@@ -373,7 +373,7 @@
 </head>
 <body class="bg-black text-white" data-theme="default">
     <a href="#main-content" class="skip-link">Skip to main content</a>
-    
+
     <div id="password-gate-overlay">
         <form id="password-gate-form" class="password-gate-form">
             <h2>Protected Page</h2>
@@ -384,7 +384,7 @@
         </form>
     </div>
     <div id="header-placeholder" data-template="header" data-root-path=""></div>
-    
+
     <main id="main-content" class="container px-4 py-12 pixabay-container" role="main">
         <section class="pixabay-hero mb-10">
             <div class="space-y-6">
@@ -539,15 +539,15 @@
     <script src="js/password-gate.js" data-password-hash="18ae8ef593e3ad19525954a455f81cc50b0b5e6462dc95468eb4d43f9d8ea17d" defer nonce="qi123"></script>
     <script nonce="qi123">
         'use strict';
-        
+
         // Constants
         const API_URL = 'https://pixabay.com/api/';
         const STORAGE_KEY = 'pixabay_api_key';
-        
+
         // State
         let apiKey = localStorage.getItem(STORAGE_KEY) || '';
         let currentImages = [];
-        
+
         // DOM Elements (cached)
         const elements = {
             status: null,
@@ -572,7 +572,7 @@
             cacheElements();
             setupEventListeners();
             createApiKeyButton();
-            
+
             // Show message if no API key
             if (!apiKey) {
                 showStatus('Click "Set API Key" button to enter your Pixabay API key', 'loading');
@@ -612,7 +612,7 @@
                     button.textContent = '🔑 Set API Key';
                     button.style.opacity = '1';
                 }
-                
+
                 button.addEventListener('click', resetApiKey);
             }
         }
@@ -623,7 +623,7 @@
                 apiKey = key.trim();
                 localStorage.setItem(STORAGE_KEY, apiKey);
                 showStatus('API key saved successfully!', 'success');
-                
+
                 // Update button appearance
                 const button = document.getElementById('apiKeyButton');
                 if (button) {
@@ -640,7 +640,7 @@
                 const confirm = window.confirm('Do you want to change your API key?');
                 if (!confirm) return;
             }
-            
+
             localStorage.removeItem(STORAGE_KEY);
             apiKey = '';
             promptForApiKey();
@@ -660,7 +660,7 @@
 
         async function searchImages() {
             const query = elements.query.value.trim();
-            
+
             if (!query) {
                 showStatus('Please enter a search query', 'error');
                 return;
@@ -680,20 +680,20 @@
             try {
                 const params = buildSearchParams(query);
                 const response = await fetch(`${API_URL}?${params}`);
-                
+
                 if (!response.ok) {
                     const errorText = response.status === 429 ? 'Rate limit exceeded. Please wait and try again.' : `API error: ${response.status}`;
                     throw new Error(errorText);
                 }
-                
+
                 const data = await response.json();
-                
+
                 if (data.hits?.length > 0) {
                     currentImages = data.hits;
                     displayResults(data.hits);
                     showStatus(`Found ${data.totalHits} images, showing ${data.hits.length}`, 'success');
                     elements.results.style.display = 'block';
-                    
+
                     // Show license info after results
                     const licenseInfo = document.getElementById('licenseInfo');
                     if (licenseInfo) licenseInfo.style.display = 'block';
@@ -721,7 +721,7 @@
 
             const category = elements.category.value;
             const colors = elements.colors.value;
-            
+
             if (category) params.append('category', category);
             if (colors) params.append('colors', colors);
 
@@ -740,13 +740,13 @@
         function createImageCard(img, index) {
             const card = document.createElement('div');
             card.className = 'image-card';
-            
+
             const preview = document.createElement('img');
             preview.src = img.previewURL;
             preview.alt = img.tags;
             preview.className = 'image-preview';
             preview.loading = 'lazy';
-            
+
             const info = document.createElement('div');
             info.className = 'image-info';
             info.innerHTML = `
@@ -761,13 +761,13 @@
                     </button>
                 </div>
             `;
-            
+
             const downloadBtn = info.querySelector('.btn-download');
             downloadBtn.addEventListener('click', () => downloadImage(index));
-            
+
             card.appendChild(preview);
             card.appendChild(info);
-            
+
             return card;
         }
 
@@ -782,7 +782,7 @@
             try {
                 const imageUrl = img.largeImageURL || img.webformatURL;
                 const resizedBlob = await resizeImageFromUrl(imageUrl, targetWidth, targetHeight, format);
-                
+
                 downloadBlob(resizedBlob, `pixabay_${img.id}_${targetWidth}x${targetHeight}.${format}`);
                 showStatus('Downloaded!', 'success');
             } catch (error) {
@@ -795,22 +795,22 @@
             return new Promise((resolve, reject) => {
                 const img = new Image();
                 img.crossOrigin = 'anonymous';
-                
+
                 img.onload = () => {
                     try {
                         const canvas = document.createElement('canvas');
                         canvas.width = width;
                         canvas.height = height;
-                        
+
                         const ctx = canvas.getContext('2d');
                         const scale = Math.max(width / img.width, height / img.height);
                         const scaledWidth = img.width * scale;
                         const scaledHeight = img.height * scale;
                         const x = (width - scaledWidth) / 2;
                         const y = (height - scaledHeight) / 2;
-                        
+
                         ctx.drawImage(img, x, y, scaledWidth, scaledHeight);
-                        
+
                         // Determine MIME type based on format
                         let mimeType;
                         if (format === 'png') {
@@ -820,7 +820,7 @@
                         } else {
                             mimeType = 'image/jpeg';
                         }
-                        
+
                         canvas.toBlob(
                             (blob) => {
                                 if (blob) {
@@ -836,7 +836,7 @@
                         reject(error);
                     }
                 };
-                
+
                 img.onerror = () => reject(new Error('Failed to load image. CORS policy may be blocking the request.'));
                 img.src = imageUrl;
             });

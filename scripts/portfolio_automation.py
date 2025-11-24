@@ -66,8 +66,8 @@ CSP_POLICY_TEMPLATE = (
 )
 
 class PortfolioAutomation:
-    def __init__(self, week_number=None, github_token=None, model="gpt-5.1-chat", 
-                 data_source="data-only", alphavantage_key=None, marketstack_key=None, 
+    def __init__(self, week_number=None, github_token=None, model="gpt-5.1-chat",
+                 data_source="data-only", alphavantage_key=None, marketstack_key=None,
                  finnhub_key=None, eval_date=None, palette="default"):
         # Configuration
         self.existing_weeks = None  # Initialize before detect_next_week() call
@@ -77,21 +77,21 @@ class PortfolioAutomation:
         self.palette = palette
         self.nonce = 'qi123'
         self.stylesheet_name = 'styles.css'
-        
+
         # API keys
         self.azure_api_key = os.getenv('AZURE_OPENAI_API_KEY')
         self.alphavantage_key = alphavantage_key or os.getenv('ALPHAVANTAGE_API_KEY')
         self.marketstack_key = marketstack_key or os.getenv('MARKETSTACK_API_KEY')
         self.finnhub_key = finnhub_key or os.getenv('FINNHUB_API_KEY')
-        
+
         # AI client state
         self.client = None
         self.ai_enabled = False
         self.ai_provider = 'Azure OpenAI'
-        
+
         # Evaluation date
         self.eval_date = None
-        
+
         # Configure HTTP session with retry logic
         self.session = requests.Session()
         retry_strategy = Retry(
@@ -103,7 +103,7 @@ class PortfolioAutomation:
         adapter = HTTPAdapter(max_retries=retry_strategy)
         self.session.mount('http://', adapter)
         self.session.mount('https://', adapter)
-        
+
         if eval_date:
             try:
                 datetime.strptime(eval_date, '%Y-%m-%d')
@@ -129,13 +129,13 @@ class PortfolioAutomation:
                 logging.info(f"✓ Azure OpenAI initialized (deployment: {self.model})")
             except Exception as e:
                 logging.error(f"✗ Azure OpenAI failed: {e}")
-        
+
         # Validate configuration
         if self.data_source == 'ai' and not self.ai_enabled:
             raise ValueError("AI mode requires AZURE_OPENAI_API_KEY. Use --data-source=data-only for testing data fetch only.")
         if self.data_source == 'data-only' and not self.alphavantage_key:
             raise ValueError("Data-only mode requires ALPHAVANTAGE_API_KEY environment variable.")
-        
+
         # Log data source status
         if self.data_source == 'data-only':
             logging.info(f"✓ Alpha Vantage enabled (key: {self.alphavantage_key[:8]}...)")
@@ -166,17 +166,17 @@ class PortfolioAutomation:
         self.performance_table = None
         self.performance_chart = None
         self.visuals_json = None
-    
+
     def detect_next_week(self):
         """Auto-detect next week number from master data file"""
         # If already loaded via load_master_json(), reuse cached value
         if self.existing_weeks is not None:
             return self.existing_weeks + 1
-        
+
         master_path = MASTER_DATA_DIR / "master.json"
         if not master_path.exists():
             raise ValueError(f"Master data file not found: {master_path}")
-        
+
         try:
             with open(master_path, 'r', encoding='utf-8') as f:
                 master = json.load(f)
@@ -184,7 +184,7 @@ class PortfolioAutomation:
                 return existing_weeks + 1  # Add 1 for next week
         except Exception as e:
             raise ValueError(f"Could not read master data: {e}")
-    
+
     def add_step(self, name, status, description, details=None):
         """Add a step to the execution report"""
         step = {
@@ -196,12 +196,12 @@ class PortfolioAutomation:
         if details:
             step['details'] = details
         self.report['steps'].append(step)
-    
+
     def print_report(self):
         """Print formatted execution report"""
         end_time = datetime.now()
         duration = (end_time - self.report['start_time']).total_seconds()
-        
+
         logging.info("="*80)
         logging.info(f" AUTOMATION EXECUTION REPORT - Week {self.report['week_number']}")
         logging.info("="*80)
@@ -212,7 +212,7 @@ class PortfolioAutomation:
         logging.info("-"*80)
         logging.info("EXECUTION STEPS:")
         logging.info("-"*80)
-        
+
         for i, step in enumerate(self.report['steps'], 1):
             status_icon = {
                 'success': '✅',
@@ -220,24 +220,24 @@ class PortfolioAutomation:
                 'error': '❌',
                 'skipped': '⊘'
             }.get(step['status'], '•')
-            
+
             logging.info(f"{i}. {status_icon} {step['name']}")
             logging.info(f"   Status: {step['status'].upper()}")
             logging.info(f"   {step['description']}")
             if 'details' in step:
                 for key, value in step['details'].items():
                     logging.info(f"   {key}: {value}")
-        
+
         logging.info("="*80)
-        
+
         # Summary counts
         success_count = sum(1 for s in self.report['steps'] if s['status'] == 'success')
         warning_count = sum(1 for s in self.report['steps'] if s['status'] == 'warning')
         error_count = sum(1 for s in self.report['steps'] if s['status'] == 'error')
-        
+
         logging.info(f"SUMMARY: {success_count} succeeded, {warning_count} warnings, {error_count} errors")
         logging.info("="*80)
-    
+
     def load_prompts(self):
         """Load prompt markdown files (A, B, D - Prompt C eliminated)"""
         prompts = {}
@@ -252,57 +252,57 @@ class PortfolioAutomation:
                 logging.warning(f"{prompt_file.name} not found")
                 prompts[letter] = f"# Prompt {letter} (placeholder)"
                 missing.append(letter)
-        
+
         if missing:
-            self.add_step("Load Prompts", "warning", 
+            self.add_step("Load Prompts", "warning",
                          f"Loaded prompts but {len(missing)} file(s) missing",
                          {'missing_prompts': ', '.join([f"Prompt-{l}" for l in missing])})
         else:
-            self.add_step("Load Prompts", "success", 
+            self.add_step("Load Prompts", "success",
                          "All 3 prompt files loaded successfully (A, B, D)")
-        
+
         return prompts
-    
+
     def load_master_json(self):
         """Load consolidated master.json (single source of truth)"""
         master_path = MASTER_DATA_DIR / "master.json"
         if not master_path.exists():
-            self.add_step("Load Master Data", "error", 
+            self.add_step("Load Master Data", "error",
                          f"Master data file not found at {master_path}")
             raise ValueError(f"Master data file not found: {master_path}")
-        
+
         try:
             with open(master_path, 'r', encoding='utf-8') as f:
                 self.master_json = json.load(f)
-            
+
             self.existing_weeks = len(self.master_json.get('portfolio_history', [])) - 1  # Subtract inception
             logging.info(f"Loaded consolidated master.json ({self.existing_weeks} weeks + inception): {master_path}")
-            
-            self.add_step("Load Master Data", "success", 
+
+            self.add_step("Load Master Data", "success",
                          f"Loaded master.json with {self.existing_weeks} completed weeks",
                          {'file_path': str(master_path)})
-            
+
             return self.master_json
         except json.JSONDecodeError as e:
-            self.add_step("Load Master Data", "error", 
+            self.add_step("Load Master Data", "error",
                          f"Invalid JSON format in master.json: {str(e)}")
             raise
         except Exception as e:
-            self.add_step("Load Master Data", "error", 
+            self.add_step("Load Master Data", "error",
                          f"Failed to load master.json: {str(e)}")
             raise
-    
+
     def call_ai(self, system_prompt, user_message, max_retries=3):
         """Call Azure OpenAI API with retry logic and automatic fallback
-        
+
         Uses Azure OpenAI deployment. Note: GPT-5.1 only supports default temperature (1).
         """
         if not self.client:
             raise ValueError("AI client not initialized. Set AZURE_OPENAI_API_KEY environment variable.")
-        
+
         current_model = self.model
         last_error = None
-        
+
         # Retry loop for transient network errors
         for attempt in range(max_retries):
             try:
@@ -316,24 +316,24 @@ class PortfolioAutomation:
                 )
                 logging.info(f"✓ AI response received ({current_model})")
                 return response.choices[0].message.content
-                
+
             except Exception as e:
                 last_error = e
                 error_msg = str(e)
-                
+
                 # Check for rate limit (429) - respect Retry-After header
                 if 'rate' in error_msg.lower() or '429' in error_msg:
                     retry_after = 60  # Default wait time
                     logging.warning(f"✗ Rate limit reached. Waiting {retry_after}s...")
                     time.sleep(retry_after)
                     continue
-                
+
                 # Check for transient network errors - retry
                 is_transient = any(keyword in error_msg.lower() for keyword in [
                     'connection', 'timeout', 'remote end closed', 'broken pipe',
                     'connection reset', 'remotedisconnected'
                 ])
-                
+
                 if is_transient and attempt < max_retries - 1:
                     # Retry with backoff
                     wait_time = 2 ** attempt  # Exponential backoff: 1s, 2s, 4s
@@ -341,7 +341,7 @@ class PortfolioAutomation:
                     logging.info(f"Retrying in {wait_time} seconds...")
                     time.sleep(wait_time)
                     continue
-                
+
                 # Final failure - provide diagnostics and raise
                 if attempt == max_retries - 1:
                     msg_len = len(system_prompt) + len(user_message)
@@ -352,29 +352,29 @@ class PortfolioAutomation:
                 else:
                     logging.error(f"✗ AI call failed: {e}")
                 raise
-        
+
         # If we somehow exit the loop without returning or raising
         raise last_error if last_error else RuntimeError("AI call failed for unknown reason")
-    
+
     def _purge_and_minify_css(self):
         """CSS optimization (placeholder - not critical for MVP)"""
         logging.warning("CSS minification not implemented (using original styles.css)")
         pass
-    
+
     def run_prompt_a_validator(self):
         """Prompt A: Data Validator - Validate calculations already performed by automation.
-        
+
         This step always runs when AI is enabled. The automation script has already:
         - Fetched prices and added to master.json
         - Calculated all metrics (stocks, portfolio, benchmarks, normalized chart)
         - Saved updated master.json
-        
+
         Prompt A validates the calculations are correct.
         Saves validation report to Data/W{n}/validation_report.txt
-        
+
         Returns:
             Dict with 'status' (pass/fail/unclear/error) and 'report' (str).
-            
+
         ERROR HANDLING STRATEGY:
             Returns dict instead of raising exceptions because validation is NON-FATAL.
             Calculations are already complete and saved - validation failures are logged
@@ -382,13 +382,13 @@ class PortfolioAutomation:
             even if validation detects minor inconsistencies that can be manually reviewed.
         """
         logging.info("Running Prompt A: Data Validator...")
-        
+
         try:
             if not self.master_json:
                 raise ValueError("master.json must be loaded before running Prompt A validator")
-            
+
             system_prompt = "You are the GenAi Chosen Data Validator. Follow Prompt A specifications exactly."
-            
+
             user_message = f"""
 {self.prompts['A']}
 
@@ -403,25 +403,25 @@ Here is master.json with Week {self.week_number} data and calculations complete:
 Validate all calculations are mathematically correct.
 Return a validation report (PASS or FAIL with details).
 """
-            
+
             response = self.call_ai(system_prompt, user_message)
-            
+
             # Save validation report to week's data folder
             week_dir = DATA_DIR / f"W{self.week_number}"
             week_dir.mkdir(exist_ok=True)
             validation_path = week_dir / "validation_report.txt"
-            
+
             with open(validation_path, 'w', encoding='utf-8') as f:
                 f.write(f"Prompt A Validation Report - Week {self.week_number}\n")
                 f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
                 f.write("=" * 80 + "\n\n")
                 f.write(response)
-            
+
             logging.info(f"Validation report saved to: {validation_path}")
-            
+
             # Check validation status - use explicit markers first, then fallback to emoji/keyword
             response_upper = response.upper()
-            
+
             # Priority 1: Explicit status declarations (most reliable)
             if 'STATUS: PASS' in response_upper or 'VALIDATION: PASS' in response_upper or 'RESULT: PASS' in response_upper:
                 status = 'pass'
@@ -433,7 +433,7 @@ Return a validation report (PASS or FAIL with details).
                 has_fail_emoji = '❌' in response
                 has_pass_word = 'PASS' in response_upper and 'FAILED' not in response_upper
                 has_fail_word = 'FAIL' in response_upper
-                
+
                 # Determine status based on indicators
                 if has_pass_emoji and not has_fail_emoji and not has_fail_word:
                     status = 'pass'
@@ -443,38 +443,38 @@ Return a validation report (PASS or FAIL with details).
                     status = 'pass'
                 else:
                     status = 'unclear'
-            
+
             # Log and record results based on status
             if status == 'pass':
                 logging.info(f"✅ Prompt A Validation: PASS - Week {self.week_number} calculations verified")
-                self.add_step("Prompt A - Data Validator", "success", 
+                self.add_step("Prompt A - Data Validator", "success",
                              f"All Week {self.week_number} calculations validated",
                              {'validation_report': response[:500], 'report_file': str(validation_path)})
                 return {'status': 'pass', 'report': response}
-            
+
             elif status == 'fail':
                 logging.warning(f"❌ Prompt A Validation: FAIL - Found calculation errors in Week {self.week_number}")
                 logging.warning(f"Validation report:\n{response}")
-                self.add_step("Prompt A - Data Validator", "warning", 
+                self.add_step("Prompt A - Data Validator", "warning",
                              f"Validation found errors in Week {self.week_number} calculations",
                              {'validation_report': response[:500], 'report_file': str(validation_path)})
                 return {'status': 'fail', 'report': response}
-            
+
             else:
                 # Ambiguous response
                 logging.warning("Prompt A validation response unclear - review report manually")
-                self.add_step("Prompt A - Data Validator", "warning", 
+                self.add_step("Prompt A - Data Validator", "warning",
                              "Validation response format unclear - check report for details",
                              {'validation_report': response[:500], 'report_file': str(validation_path)})
                 return {'status': 'unclear', 'report': response}
-            
+
         except Exception as e:
-            self.add_step("Prompt A - Data Validator", "error", 
+            self.add_step("Prompt A - Data Validator", "error",
                          f"Prompt A validation failed: {str(e)}")
             # Validation failure is non-fatal - calculations already done
             logging.warning(f"Prompt A validator failed: {e}. Continuing with generated data.")
             return {'status': 'error', 'report': str(e)}
-    
+
     def _generate_media_assets(self):
         """Hero image generation disabled - manually add W{n}.webp to Media folder."""
         expected_path = REPO_ROOT / 'Media' / f"W{self.week_number}.webp"
@@ -515,7 +515,7 @@ Return a validation report (PASS or FAIL with details).
             response = self.session.get(url, params=params, timeout=60)
             response.raise_for_status()
             data = response.json()
-            
+
             if 'Global Quote' in data and data['Global Quote']:
                 quote = data['Global Quote']
                 # Validate date format
@@ -526,7 +526,7 @@ Return a validation report (PASS or FAIL with details).
                 except ValueError:
                     date_clean = self._latest_market_date()
                     logging.warning(f"Invalid date format from Alpha Vantage for {symbol}, using fallback: {date_clean}")
-                
+
                 return {
                     'date': date_clean,
                     'close': float(quote.get('05. price', 0)),
@@ -567,7 +567,7 @@ Return a validation report (PASS or FAIL with details).
                 except (ValueError, IndexError):
                     date_clean = self._latest_market_date()
                     logging.warning(f"Invalid date format from Alpha Vantage crypto for {symbol}, using fallback: {date_clean}")
-                
+
                 return {
                     'date': date_clean,
                     'close': float(rate.get('5. Exchange Rate', 0)),
@@ -586,7 +586,7 @@ Return a validation report (PASS or FAIL with details).
         """
         if not self.marketstack_key:
             return None
-        
+
         url = 'http://api.marketstack.com/v1/eod/latest'
         params = {
             'access_key': self.marketstack_key,
@@ -596,7 +596,7 @@ Return a validation report (PASS or FAIL with details).
             response = self.session.get(url, params=params, timeout=60)
             response.raise_for_status()
             data = response.json()
-            
+
             if 'data' in data and data['data'] and len(data['data']) > 0:
                 quote = data['data'][0]
                 # Validate date format
@@ -609,7 +609,7 @@ Return a validation report (PASS or FAIL with details).
                     # Fallback to current market date
                     date_clean = self._latest_market_date()
                     logging.warning(f"Invalid date format from Marketstack for {symbol}, using fallback: {date_clean}")
-                
+
                 return {
                     'date': date_clean,
                     'close': float(quote.get('close', 0)),
@@ -629,14 +629,14 @@ Return a validation report (PASS or FAIL with details).
         """
         if not self.finnhub_key:
             return None
-        
+
         # Rate limit: 5 req/min = 12 seconds between calls
         elapsed = time.time() - self.last_finnhub_call
         if elapsed < self.finnhub_min_interval:
             wait_time = self.finnhub_min_interval - elapsed
             logging.debug(f"Finnhub rate limit: waiting {wait_time:.1f}s before request")
             time.sleep(wait_time)
-        
+
         url = 'https://finnhub.io/api/v1/quote'
         params = {
             'symbol': symbol,
@@ -670,14 +670,14 @@ Return a validation report (PASS or FAIL with details).
         """Fetch latest crypto price (BTC) from Finnhub (using BINANCE:BTCUSDT)."""
         if not self.finnhub_key:
             return None
-        
+
         # Rate limit: 5 req/min = 12 seconds between calls
         elapsed = time.time() - self.last_finnhub_call
         if elapsed < self.finnhub_min_interval:
             wait_time = self.finnhub_min_interval - elapsed
             logging.debug(f"Finnhub rate limit: waiting {wait_time:.1f}s before crypto request")
             time.sleep(wait_time)
-        
+
         # Map generic 'BTC' symbol to Finnhub crypto symbol
         finnhub_symbol = 'BINANCE:BTCUSDT' if symbol.upper() == 'BTC' else symbol
         url = 'https://finnhub.io/api/v1/quote'
@@ -712,7 +712,7 @@ Return a validation report (PASS or FAIL with details).
         """Generate new week's master.json using Alpha Vantage API.
         Uses previous week's master.json as baseline, fetches latest prices,
         recalculates weekly and total pct changes, benchmarks, portfolio history.
-        
+
         Raises:
             ValueError: If master.json not loaded or if duplicate date detected.
         """
@@ -737,7 +737,7 @@ Return a validation report (PASS or FAIL with details).
         for i, ticker in enumerate(tickers, 1):
             logging.info(f"→ [{i}/{len(tickers)}] Fetching {ticker}...")
             used_alphavantage = False
-            
+
             quote = self._fetch_alphavantage_quote(ticker)
             if quote:
                 used_alphavantage = True
@@ -748,7 +748,7 @@ Return a validation report (PASS or FAIL with details).
                 quote = self._fetch_alphavantage_quote(ticker)
                 if quote:
                     used_alphavantage = True
-            
+
             # Finnhub fallback (before Marketstack)
             if not quote and self.finnhub_key:
                 logging.info(f"  ⟳ Trying Finnhub for {ticker}...")
@@ -763,14 +763,14 @@ Return a validation report (PASS or FAIL with details).
                 quote = self._fetch_marketstack_quote(ticker)
                 if quote:
                     used_alphavantage = False  # Track that we used Marketstack
-            
+
             if quote:
                 price_data[ticker] = quote
                 price_sources[ticker] = quote.get('source', 'Unknown')
             else:
                 # Critical failure - cannot proceed without current prices
                 raise ValueError(f"Failed to fetch price for {ticker} from all sources. Cannot generate accurate portfolio data.")
-            
+
             # Rate limiting (skip on last item)
             if i < len(tickers):
                 if used_alphavantage:
@@ -783,7 +783,7 @@ Return a validation report (PASS or FAIL with details).
         for stock in self.master_json['stocks']:
             t = stock['ticker']
             current_price = price_data[t]['close']
-            
+
             # Get inception and prior prices from history
             inception_price = stock['prices'][inception_date]
             prior_price = stock['prices'][prev_date]
@@ -815,10 +815,10 @@ Return a validation report (PASS or FAIL with details).
         logging.info("Fetching benchmarks...")
         bench_data = {}
         bench_sources = {}  # Track source for each benchmark
-        
+
         # Extract benchmark config from master.json
         bench_config = self.master_json.get('benchmarks', {})
-        
+
         for bench_key in bench_config.keys():
             # Derive symbol and type from benchmark key or use defaults
             # Expected: sp500 -> ^SPX (S&P 500 Index), bitcoin -> BTC (crypto)
@@ -832,9 +832,9 @@ Return a validation report (PASS or FAIL with details).
                 # Future-proof: try to derive from key name
                 symbol = bench_key.upper()
                 bench_type = 'stock'  # Default to stock
-            
+
             logging.info(f"Fetching {bench_key.upper()} ({symbol}, type: {bench_type})...")
-            
+
             if bench_type == 'crypto':
                 # Alpha Vantage first
                 quote = self._fetch_alphavantage_crypto(symbol, to_currency='USD')
@@ -861,13 +861,13 @@ Return a validation report (PASS or FAIL with details).
                 if not quote and self.marketstack_key:
                     logging.info(f"Trying Marketstack for {bench_key.upper()}...")
                     quote = self._fetch_marketstack_quote(symbol)
-                
+
                 if not quote:
                     raise ValueError(f"Failed to fetch {bench_key.upper()} ({symbol}) price from all sources. Cannot generate accurate portfolio data.")
-            
+
             bench_data[bench_key] = quote
             bench_sources[bench_key] = quote.get('source', 'Unknown')
-            
+
             # Rate limiting based on source
             if quote.get('source') == 'Marketstack':
                 time.sleep(2)   # Marketstack: 2 sec delay
@@ -910,7 +910,7 @@ Return a validation report (PASS or FAIL with details).
         btc_first_ref = self.master_json['benchmarks']['bitcoin']['inception_reference']
         spx_close = updated_benchmarks['sp500']['history'][-1]['close']
         btc_close = updated_benchmarks['bitcoin']['history'][-1]['close']
-        
+
         normalized_entry = {
             "date": new_date,
             "portfolio_value": portfolio_current_value,
@@ -966,7 +966,7 @@ Return a validation report (PASS or FAIL with details).
             json.dump(updated_master, f, indent=2)
 
         self.master_json = updated_master
-        
+
         # Build detailed price report
         price_report = {}
         for ticker in tickers:
@@ -985,38 +985,38 @@ Return a validation report (PASS or FAIL with details).
             'date': bench_data['bitcoin']['date'],
             'source': bench_sources.get('bitcoin', 'Unknown')
         }
-        
+
         self.add_step("Calculate Portfolio Metrics", "success",
                      f"Fetched prices and calculated metrics for Week {self.week_number}",
                      {'prices': price_report})
-        
+
         logging.info(f"Alpha Vantage data engine completed for Week {self.week_number}")
         logging.info(f"  → Primary: {master_path}")
         logging.info(f"  → Archive: {archive_path}")
         logging.info(f"  → Legacy:  {legacy_path} (optional)")
-        
+
         # Generate media assets
         self._generate_media_assets()
         return updated_master
-    
+
     def _extract_narrative_summary(self):
         """Extract only essential data for Prompt B to reduce token usage"""
         if not self.master_json:
             return {}
-        
+
         # Get latest entries only
         ph = self.master_json.get('portfolio_history', [])
         latest_portfolio = ph[-1] if ph else {}
         prev_portfolio = ph[-2] if len(ph) > 1 else {}
-        
+
         sp500_hist = self.master_json.get('benchmarks', {}).get('sp500', {}).get('history', [])
         latest_sp500 = sp500_hist[-1] if sp500_hist else {}
         prev_sp500 = sp500_hist[-2] if len(sp500_hist) > 1 else {}
-        
+
         btc_hist = self.master_json.get('benchmarks', {}).get('bitcoin', {}).get('history', [])
         latest_btc = btc_hist[-1] if btc_hist else {}
         prev_btc = btc_hist[-2] if len(btc_hist) > 1 else {}
-        
+
         # Extract current stocks with only current week data
         stocks_summary = []
         for stock in self.master_json.get('stocks', []):
@@ -1028,7 +1028,7 @@ Return a validation report (PASS or FAIL with details).
                 'weekly_pct': stock.get('weekly_pct'),
                 'total_pct': stock.get('total_pct')
             })
-        
+
         return {
             'meta': self.master_json.get('meta', {}),
             'stocks': stocks_summary,
@@ -1070,10 +1070,10 @@ Return a validation report (PASS or FAIL with details).
             },
             'week_number': self.week_number
         }
-    
+
     def run_prompt_b(self):
         """Prompt B: Narrative Writer - Generate HTML content
-        
+
         ERROR HANDLING STRATEGY:
             Raises exceptions on failure because narrative generation is FATAL.
             Unlike Prompt A (validation), this step creates required content for the
@@ -1081,16 +1081,16 @@ Return a validation report (PASS or FAIL with details).
             so the entire pipeline must abort.
         """
         logging.info("Running Prompt B: Narrative Writer...")
-        
+
         try:
             system_prompt = "You are the GenAi Chosen Narrative Writer. Follow Prompt B specifications exactly."
-            
+
             # Extract only essential data to stay under token limit
             narrative_data = self._extract_narrative_summary()
-            
+
             # Compact JSON to reduce size
             data_json = json.dumps(narrative_data, separators=(',', ':'))
-            
+
             user_message = f"""
 {self.prompts['B']}
 
@@ -1108,13 +1108,13 @@ Generate:
 
 This is for Week {self.week_number}.
 """
-            
+
             # Log request size for debugging
             estimated_tokens = (len(system_prompt) + len(user_message)) // 4
             logging.info(f"Estimated request size: ~{estimated_tokens} tokens")
-            
+
             response = self.call_ai(system_prompt, user_message)
-            
+
             # Extract narrative HTML
             html_match = re.search(r'```html\s*(<div class="prose.*?</div>)\s*```', response, re.DOTALL)
             if html_match:
@@ -1125,10 +1125,10 @@ This is for Week {self.week_number}.
                 if html_match:
                     self.narrative_html = html_match.group(1)
                 else:
-                    self.add_step("Prompt B - Narrative Writer", "error", 
+                    self.add_step("Prompt B - Narrative Writer", "error",
                                  "Could not extract narrative HTML from AI response")
                     raise ValueError("Could not extract narrative HTML from Prompt B response")
-            
+
             # Extract SEO JSON
             seo_status = "success"
             json_match = re.search(r'```json\s*({.*?})\s*```', response, re.DOTALL)
@@ -1143,21 +1143,21 @@ This is for Week {self.week_number}.
                 logging.warning("No SEO JSON found, generating fallback")
                 self.seo_json = self.generate_fallback_seo()
                 seo_status = "warning"
-            
+
             logging.info("Prompt B completed - narrative and SEO generated")
-            
-            self.add_step("Prompt B - Narrative Writer", seo_status, 
+
+            self.add_step("Prompt B - Narrative Writer", seo_status,
                          "Generated narrative HTML and SEO metadata",
                          {'narrative_length': f"{len(self.narrative_html)} chars",
                           'seo_metadata': 'extracted' if seo_status == 'success' else 'fallback used'})
-            
+
             return self.narrative_html, self.seo_json
-            
+
         except Exception as e:
-            self.add_step("Prompt B - Narrative Writer", "error", 
+            self.add_step("Prompt B - Narrative Writer", "error",
                          f"Prompt B execution failed: {str(e)}")
             raise
-    
+
     def generate_fallback_seo(self):
         """Generate fallback SEO metadata if extraction fails"""
         current_date = self.master_json['meta']['current_date']
@@ -1180,10 +1180,10 @@ This is for Week {self.week_number}.
     def _apply_standard_head(self, html: str) -> str:
         """Apply hardened CSP + nonce, stylesheet link, external scripts, JSON-LD."""
         seo = self.seo_json or self.generate_fallback_seo()
-        
+
         # ALWAYS use the generated hero image for Open Graph and Twitter Card meta tags (override AI-generated URLs)
         hero_image_url = f"https://quantuminvestor.net/Media/W{self.week_number}.webp"
-        
+
         canonical = seo.get('canonicalUrl')
         title = seo.get('title')
         meta_desc = seo.get('description')
@@ -1198,15 +1198,15 @@ This is for Week {self.week_number}.
         published_iso = self.master_json.get('meta', {}).get('current_date', datetime.utcnow().date().isoformat()) + 'T00:00:00Z'
         modified_iso = published_iso
         csp_policy = CSP_POLICY_TEMPLATE.format(nonce=self.nonce)
-        
+
         # AI provider metadata
         ai_model_info = f"{self.ai_provider}: {self.model}" if self.ai_provider else "Data-only mode"
         # Derive keywords (fallback: generic terms + tickers)
         tickers = []
         try:
             tickers = [s.get('ticker') for s in self.master_json.get('stocks', []) if s.get('ticker')]
-        except Exception:
-            pass
+        except (KeyError, TypeError, AttributeError) as e:
+            logging.debug(f"Could not extract tickers for keywords: {e}")
         base_keywords = ["AI investing", "momentum stocks", "portfolio performance", "S&P 500", "Bitcoin"]
         if tickers:
             base_keywords.extend(tickers[:10])
@@ -1560,31 +1560,31 @@ This is for Week {self.week_number}.
                 logging.info(f"Hardened static page: {fp.name}")
             except Exception as e:
                 logging.warning(f"Failed hardening {fp.name}: {e}")
-    
+
     def _extract_visual_data(self):
         """Extract only data needed for visuals (table + chart) to reduce tokens"""
         if not self.master_json:
             return {}
-        
+
         # Get latest 3 entries for table (inception, previous, current)
         ph = self.master_json.get('portfolio_history', [])
         inception = ph[0] if ph else {}
         previous = ph[-2] if len(ph) > 1 else {}
         current = ph[-1] if ph else {}
-        
+
         sp500_hist = self.master_json.get('benchmarks', {}).get('sp500', {}).get('history', [])
         sp500_inception = sp500_hist[0] if sp500_hist else {}
         sp500_previous = sp500_hist[-2] if len(sp500_hist) > 1 else {}
         sp500_current = sp500_hist[-1] if sp500_hist else {}
-        
+
         btc_hist = self.master_json.get('benchmarks', {}).get('bitcoin', {}).get('history', [])
         btc_inception = btc_hist[0] if btc_hist else {}
         btc_previous = btc_hist[-2] if len(btc_hist) > 1 else {}
         btc_current = btc_hist[-1] if btc_hist else {}
-        
+
         # Get normalized chart data (all entries needed for chart)
         normalized = self.master_json.get('normalized_chart', [])
-        
+
         return {
             'meta': self.master_json.get('meta', {}),
             'portfolio_history': [inception, previous, current],
@@ -1601,49 +1601,49 @@ This is for Week {self.week_number}.
             'normalized_chart': normalized,
             'week_number': self.week_number
         }
-    
+
     def generate_visuals(self):
         """Generate performance table and chart directly (no AI needed).
-        
+
         Replaces Prompt C functionality with deterministic Python generation.
-        
+
         Raises:
             ValueError: If master.json not loaded or insufficient data.
         """
         logging.info("Generating visual components...")
-        
+
         try:
             # Generate table and chart using Python
             self.generate_performance_table()
             self.generate_performance_chart()
             self.generate_visuals_json()
-            
+
             logging.info("Visual generation completed")
-            
+
         except Exception as e:
             self.add_step("Generate Visuals", "error",
                          f"Visual generation failed: {str(e)}")
             raise
-    
+
     def _generate_data_only_report(self):
         """Generate summary report for data-only mode.
-        
+
         Creates a human-readable text report with:
         - Week metadata
         - Portfolio performance summary
         - Individual stock performance
         - Benchmark comparisons
         - Data source attribution
-        
+
         Saves to: Data/W{n}/data_report.txt
         """
         logging.info("Generating data-only summary report...")
-        
+
         try:
             week_dir = DATA_DIR / f"W{self.week_number}"
             week_dir.mkdir(exist_ok=True)
             report_path = week_dir / "data_report.txt"
-            
+
             # Extract data
             meta = self.master_json['meta']
             totals = self.master_json['portfolio_totals']
@@ -1651,13 +1651,13 @@ This is for Week {self.week_number}.
             ph = self.master_json['portfolio_history']
             current_entry = ph[-1]
             prev_entry = ph[-2] if len(ph) > 1 else ph[0]
-            
+
             sp500_hist = self.master_json['benchmarks']['sp500']['history']
             sp500_current = sp500_hist[-1]
-            
+
             btc_hist = self.master_json['benchmarks']['bitcoin']['history']
             btc_current = btc_hist[-1]
-            
+
             # Build report
             report_lines = [
                 "="*80,
@@ -1695,10 +1695,10 @@ This is for Week {self.week_number}.
                 "INDIVIDUAL STOCK PERFORMANCE",
                 "-"*80,
             ]
-            
+
             # Sort stocks by weekly performance
             sorted_stocks = sorted(stocks, key=lambda s: s['weekly_pct'], reverse=True)
-            
+
             for stock in sorted_stocks:
                 ticker = stock['ticker']
                 name = stock['name']
@@ -1706,13 +1706,13 @@ This is for Week {self.week_number}.
                 current_val = stock['current_value']
                 weekly_pct = stock['weekly_pct']
                 total_pct = stock['total_pct']
-                
+
                 # Get current and previous prices
                 prices = stock['prices']
                 dates = sorted(prices.keys())
                 current_price = prices[dates[-1]]
                 prev_price = prices[dates[-2]] if len(dates) > 1 else current_price
-                
+
                 report_lines.extend([
                     f"{ticker:6s} - {name}",
                     f"  Shares:          {shares:,}",
@@ -1723,7 +1723,7 @@ This is for Week {self.week_number}.
                     f"  Total Return:    {total_pct:+.2f}%",
                     ""
                 ])
-            
+
             report_lines.extend([
                 "="*80,
                 "GENERATED FILES",
@@ -1740,23 +1740,23 @@ This is for Week {self.week_number}.
                 "      Use --data-source=ai for full pipeline with AI narrative generation.",
                 "="*80
             ])
-            
+
             # Write report
             with open(report_path, 'w', encoding='utf-8') as f:
                 f.write('\n'.join(report_lines))
-            
+
             logging.info(f"Data report saved to: {report_path}")
-            
+
         except Exception as e:
             logging.error(f"Failed to generate data report: {e}")
             raise
-    
+
     def run_prompt_d(self):
         """Prompt D: Final Assembler - Create complete HTML page"""
         logging.info("Running Prompt D: Final HTML Assembler...")
-        
+
         system_prompt = "You are the GenAi Chosen Final Page Builder. Follow Prompt D specifications exactly."
-        
+
         # Embed table and chart into narrative if not already there
         if self.performance_table and self.performance_table not in self.narrative_html:
             # Find insertion point after "Performance Snapshot" section
@@ -1765,13 +1765,13 @@ This is for Week {self.week_number}.
             if match:
                 insert_pos = match.end()
                 self.narrative_html = (
-                    self.narrative_html[:insert_pos] + 
-                    '\n\n' + self.performance_table + '\n\n' + 
+                    self.narrative_html[:insert_pos] +
+                    '\n\n' + self.performance_table + '\n\n' +
                     self.narrative_html[insert_pos:]
                 )
             else:
                 logging.warning("Could not find Performance Snapshot insertion point")
-        
+
         if self.performance_chart and self.performance_chart not in self.narrative_html:
             # Find insertion point after "Performance Since Inception" h2 and 3 paragraphs
             # Primary pattern: exactly 3 paragraphs (Prompt B requirement)
@@ -1780,8 +1780,8 @@ This is for Week {self.week_number}.
             if match:
                 insert_pos = match.end()
                 self.narrative_html = (
-                    self.narrative_html[:insert_pos] + 
-                    '\n\n' + self.performance_chart + '\n\n' + 
+                    self.narrative_html[:insert_pos] +
+                    '\n\n' + self.performance_chart + '\n\n' +
                     self.narrative_html[insert_pos:]
                 )
                 logging.info("Chart embedded after 3 paragraphs (standard pattern)")
@@ -1793,22 +1793,22 @@ This is for Week {self.week_number}.
                 if match:
                     insert_pos = match.end()
                     self.narrative_html = (
-                        self.narrative_html[:insert_pos] + 
-                        '\n\n' + self.performance_chart + '\n\n' + 
+                        self.narrative_html[:insert_pos] +
+                        '\n\n' + self.performance_chart + '\n\n' +
                         self.narrative_html[insert_pos:]
                     )
                     logging.info("Chart embedded using fallback pattern (2-4 paragraphs)")
                 else:
                     logging.error("CRITICAL: Could not find Performance Since Inception section for chart embedding")
                     logging.error("This may result in chart not appearing in final HTML")
-        
+
         # Extract minimal metadata for Prompt D (doesn't need full data)
         minimal_meta = {
             'week_number': self.week_number,
             'current_date': self.master_json.get('meta', {}).get('current_date'),
             'inception_date': self.master_json.get('meta', {}).get('inception_date')
         }
-        
+
         user_message = f"""
 {self.prompts['D']}
 
@@ -1833,9 +1833,9 @@ Here are the components:
 
 Generate the complete HTML file for Week {self.week_number}.
 """
-        
+
         response = self.call_ai(system_prompt, user_message)
-        
+
         # Extract final HTML
         html_match = re.search(r'<!DOCTYPE html>.*</html>', response, re.DOTALL | re.IGNORECASE)
         final_html = html_match.group(0) if html_match else response
@@ -1867,19 +1867,19 @@ Generate the complete HTML file for Week {self.week_number}.
                     final_html = final_html[:prose_pos] + tldr_markup + final_html[prose_pos:]
         except Exception as e:
             logging.warning(f"TLDR structural injection failed: {e}")
-        
+
         # Basic validation
         if not final_html.strip().startswith('<!DOCTYPE'):
             logging.warning("Generated HTML doesn't start with DOCTYPE")
         if '</html>' not in final_html.lower():
             logging.warning("Generated HTML doesn't have closing </html> tag")
-        
+
         # Check for required elements
         required_elements = ['<head>', '<body>', '<article>', 'class="prose']
         missing = [elem for elem in required_elements if elem not in final_html]
         if missing:
             logging.warning(f"Missing expected elements: {', '.join(missing)}")
-        
+
         # ================= PERFORMANCE OPTIMIZATION =================
         try:
             final_html = self._optimize_performance(final_html)
@@ -1891,9 +1891,9 @@ Generate the complete HTML file for Week {self.week_number}.
             output_path = POSTS_DIR / f"GenAi-Managed-Stocks-Portfolio-Week-{self.week_number}.html"
             with open(output_path, 'w', encoding='utf-8') as f:
                 f.write(final_html)
-            
+
             logging.info(f"Prompt D completed - {output_path.name} created ({len(final_html)} bytes)")
-            
+
             # Validation warnings
             warnings = []
             if not final_html.strip().startswith('<!DOCTYPE'):
@@ -1904,20 +1904,20 @@ Generate the complete HTML file for Week {self.week_number}.
             missing = [elem for elem in required_elements if elem not in final_html]
             if missing:
                 warnings.extend(missing)
-            
+
             status = "warning" if warnings else "success"
             details = {'output_file': str(output_path), 'file_size': f"{len(final_html)} bytes"}
             if warnings:
                 details['validation_warnings'] = ', '.join(warnings)
-            
-            self.add_step("Prompt D - Final Assembler", status, 
+
+            self.add_step("Prompt D - Final Assembler", status,
                          "Generated complete HTML page for Week post",
                          details)
-            
+
             return final_html
-            
+
         except Exception as e:
-            self.add_step("Prompt D - Final Assembler", "error", 
+            self.add_step("Prompt D - Final Assembler", "error",
                          f"Failed to save final HTML: {str(e)}")
             raise
 
@@ -1941,68 +1941,68 @@ Generate the complete HTML file for Week {self.week_number}.
         # Remove any leftover <style> blocks that only define key-metric (now centralized)
         html = re.sub(r'<style>[^<]*?\.key-metric[^<]*?</style>', '', html, flags=re.DOTALL)
         return html
-    
+
     def generate_performance_table(self):
         """Generate performance_table.html from master.json data.
-        
+
         Creates a snapshot table showing inception, previous week, and current week
         values for portfolio, S&P 500, and Bitcoin.
         """
         logging.info("Generating performance table...")
-        
+
         try:
             if not self.master_json:
                 raise ValueError("master.json must be loaded before generating visuals")
-            
+
             # Extract data from master.json
             meta = self.master_json.get('meta', {})
             inception_date = meta.get('inception_date', '2025-10-09')
             current_date = meta.get('current_date', '')
-            
+
             portfolio_history = self.master_json.get('portfolio_history', [])
             sp500_history = self.master_json.get('benchmarks', {}).get('sp500', {}).get('history', [])
             btc_history = self.master_json.get('benchmarks', {}).get('bitcoin', {}).get('history', [])
-            
+
             if len(portfolio_history) < 2:
                 raise ValueError("Need at least 2 weeks of data to generate table")
-            
+
             # Get inception, previous, and current entries
             portfolio_inception = portfolio_history[0]
             portfolio_previous = portfolio_history[-2]
             portfolio_current = portfolio_history[-1]
-            
+
             sp500_inception = sp500_history[0]
             sp500_previous = sp500_history[-2]
             sp500_current = sp500_history[-1]
-            
+
             btc_inception = btc_history[0]
             btc_previous = btc_history[-2]
             btc_current = btc_history[-1]
-            
+
             # Format dates
             prev_date = portfolio_previous.get('date', '')
             curr_date = portfolio_current.get('date', '')
-            
+
             # Parse dates for display
             from datetime import datetime
             prev_date_obj = datetime.strptime(prev_date, '%Y-%m-%d')
             curr_date_obj = datetime.strptime(curr_date, '%Y-%m-%d')
-            
+
             prev_display = prev_date_obj.strftime('%b %-d' if prev_date_obj.day < 10 else '%b %d').replace(' 0', ' ')
             curr_display = curr_date_obj.strftime('%b %-d' if curr_date_obj.day < 10 else '%b %d').replace(' 0', ' ')
             year = curr_date_obj.year
-            
+
             # Format values
             def format_value(val, prefix=''):
                 return f"{prefix}{val:,}"
-            
+
             def format_pct(val):
                 sign = '+' if val >= 0 else ''
                 return f"{sign}{val:.2f}%"
-            
+
             def pct_class(val):
                 return 'positive' if val >= 0 else 'negative'
-            
+
             # Build HTML
             table_html = f'''<div class="myblock-performance-snapshot">
   <table class="myblock-portfolio-table" aria-label="Portfolio performance comparison">
@@ -2045,44 +2045,44 @@ Generate the complete HTML file for Week {self.week_number}.
     </tbody>
   </table>
 </div>'''
-            
+
             self.performance_table = table_html
-            
+
             # Save to file for archival/debugging
             output_path = DATA_DIR / f"W{self.week_number}" / "performance_table.html"
             output_path.parent.mkdir(parents=True, exist_ok=True)
             with open(output_path, 'w', encoding='utf-8') as f:
                 f.write(table_html)
-            
+
             logging.info(f"Performance table generated: {output_path}")
             self.add_step("Generate Performance Table", "success",
                          "Generated performance snapshot table",
                          {'output_file': str(output_path)})
-            
+
             return table_html
-            
+
         except Exception as e:
             self.add_step("Generate Performance Table", "error",
                          f"Failed to generate performance table: {str(e)}")
             raise
-    
+
     def generate_performance_chart(self):
         """Generate performance_chart.svg from master.json data.
-        
+
         Creates a normalized line chart showing portfolio, S&P 500, and Bitcoin
         performance since inception (all normalized to 100 at start).
         """
         logging.info("Generating performance chart...")
-        
+
         try:
             if not self.master_json:
                 raise ValueError("master.json must be loaded before generating visuals")
-            
+
             # Extract normalized chart data
             normalized_data = self.master_json.get('normalized_chart', [])
             if len(normalized_data) < 2:
                 raise ValueError("Need at least 2 data points to generate chart")
-            
+
             # SVG dimensions and padding - Match Week 5 exactly
             width = 900
             height = 400
@@ -2092,15 +2092,15 @@ Generate the complete HTML file for Week {self.week_number}.
             pad_bottom = 50
             chart_width = width - pad_left - pad_right
             chart_height = height - pad_top - pad_bottom
-            
+
             # FIXED Y-AXIS SCALE: 80 to 120 (normalized baseline 100)
             # This matches Week 5 standard where all assets start at 100
             y_min = 80
             y_max = 120
-            
+
             # Fixed Y-axis labels matching Week 5
             y_labels = [120, 110, 100, 90, 80]
-            
+
             # Coordinate conversion functions - Week 5 standard
             # Y-axis mapping: 80 -> y=350, 100 -> y=200, 120 -> y=50
             # Formula: y = 200 - (normalized_value - 100) * 7.5
@@ -2108,16 +2108,16 @@ Generate the complete HTML file for Week {self.week_number}.
                 if len(normalized_data) == 1:
                     return pad_left
                 return pad_left + (index / (len(normalized_data) - 1)) * chart_width
-            
+
             def y_coord(value):
                 # Week 5 formula: y = 200 - (value - 100) * 7.5
                 return 200.0 - (value - 100.0) * 7.5
-            
+
             # Generate polyline points - Week 5 format (1 decimal place)
             genai_points = []
             spx_points = []
             btc_points = []
-            
+
             for i, entry in enumerate(normalized_data):
                 x = x_coord(i)
                 genai_y = y_coord(entry.get('genai_norm', 100))
@@ -2126,7 +2126,7 @@ Generate the complete HTML file for Week {self.week_number}.
                 genai_points.append(f"{x:.1f},{genai_y:.1f}")
                 spx_points.append(f"{x:.1f},{spx_y:.1f}")
                 btc_points.append(f"{x:.1f},{btc_y:.1f}")
-            
+
             # Generate X-axis labels (dates) - Week 5 style
             from datetime import datetime
             x_labels_html = []
@@ -2137,7 +2137,7 @@ Generate the complete HTML file for Week {self.week_number}.
                 label = date_obj.strftime('%b %-d, %Y').replace(' 0', ' ')
                 x = x_coord(idx)
                 x_labels_html.append(f'<text class="myblock-chart-label" x="{x:.1f}" y="375" text-anchor="middle">{label}</text>')
-            
+
             # Generate Y-axis labels and gridlines - Week 5 fixed positions
             y_grid_positions = [50, 125, 200, 275, 350]  # y=50 (120), y=125 (110), y=200 (100), y=275 (90), y=350 (80)
             y_labels_html = []
@@ -2145,7 +2145,7 @@ Generate the complete HTML file for Week {self.week_number}.
             for i, (val, y_pos) in enumerate(zip(y_labels, y_grid_positions)):
                 y_labels_html.append(f'<text class="myblock-chart-label" x="65" y="{y_pos + 5}" text-anchor="end">{val}</text>')
                 gridlines_html.append(f'<line class="myblock-chart-grid-line" x1="80" y1="{y_pos}" x2="850" y2="{y_pos}"/>')
-            
+
             # Generate dots - Week 5 format with proper formatting
             dots_html = []
             for i, entry in enumerate(normalized_data):
@@ -2156,17 +2156,17 @@ Generate the complete HTML file for Week {self.week_number}.
                 dots_html.append(f'<circle class="myblock-chart-dot myblock-chart-dot-genai" cx="{x:.1f}" cy="{genai_y:.1f}"/>')
                 dots_html.append(f'<circle class="myblock-chart-dot myblock-chart-dot-sp500" cx="{x:.1f}" cy="{spx_y:.1f}"/>')
                 dots_html.append(f'<circle class="myblock-chart-dot myblock-chart-dot-bitcoin" cx="{x:.1f}" cy="{btc_y:.1f}"/>')
-            
+
             # Get total returns for legend
             latest = normalized_data[-1]
             genai_return = latest.get('genai_norm', 100) - 100
             spx_return = latest.get('spx_norm', 100) - 100
             btc_return = latest.get('btc_norm', 100) - 100
-            
+
             def format_pct(val):
                 sign = '+' if val >= 0 else ''
                 return f"{sign}{val:.2f}%"
-            
+
             # Build chart HTML - Week 5 format with clean comments
             chart_html = f'''<div class="myblock-chart-container">
   <div class="myblock-chart-title">Performance Since Inception (Normalized to 100)</div>
@@ -2208,27 +2208,27 @@ Generate the complete HTML file for Week {self.week_number}.
     </div>
   </div>
 </div>'''
-            
+
             self.performance_chart = chart_html
-            
+
             # Save to file for archival/debugging
             output_path = DATA_DIR / f"W{self.week_number}" / "performance_chart.svg"
             output_path.parent.mkdir(parents=True, exist_ok=True)
             with open(output_path, 'w', encoding='utf-8') as f:
                 f.write(chart_html)
-            
+
             logging.info(f"Performance chart generated: {output_path}")
             self.add_step("Generate Performance Chart", "success",
                          "Generated normalized performance chart",
                          {'output_file': str(output_path)})
-            
+
             return chart_html
-            
+
         except Exception as e:
             self.add_step("Generate Performance Chart", "error",
                          f"Failed to generate performance chart: {str(e)}")
             raise
-    
+
     def generate_visuals_json(self):
         """Generate visuals.json metadata descriptor."""
         try:
@@ -2243,29 +2243,29 @@ Generate the complete HTML file for Week {self.week_number}.
                 "benchmarks": ["sp500", "bitcoin"],
                 "normalized": True
             }
-            
+
             self.visuals_json = visuals_data
-            
+
             # Save to file
             output_path = DATA_DIR / f"W{self.week_number}" / "visuals.json"
             output_path.parent.mkdir(parents=True, exist_ok=True)
             with open(output_path, 'w', encoding='utf-8') as f:
                 json.dump(visuals_data, f, indent=2)
-            
+
             logging.info(f"Visuals metadata generated: {output_path}")
             return visuals_data
-            
+
         except Exception as e:
             logging.warning(f"Failed to generate visuals.json: {e}")
             return None
-    
+
     def update_index_pages(self):
         """Update posts.html and index.html with dynamically generated listings from Posts/ directory"""
         logging.info("Regenerating posts.html and index.html listings...")
         self._regenerate_posts_listing()
         self._regenerate_index_recent_posts()
         logging.info("posts.html and index.html regenerated with current weekly posts")
-    
+
     def _regenerate_posts_listing(self):
         """Scan Posts/ directory and rebuild posts.html with standardized head and cards"""
         # Collect all weekly post metadata
@@ -2274,28 +2274,28 @@ Generate the complete HTML file for Week {self.week_number}.
             key=lambda p: int(re.search(r'Week-(\d+)', p.name).group(1)),
             reverse=True
         )
-        
+
         posts_meta = []
         for post_file in post_files:
             week_match = re.search(r'Week-(\d+)', post_file.name)
             if not week_match:
                 continue
             week_num = int(week_match.group(1))
-            
+
             # Parse published date and title from existing post file
             with open(post_file, 'r', encoding='utf-8') as f:
                 content = f.read()
                 date_match = re.search(r'<time[^>]*datetime="([^"]+)"', content)
                 title_match = re.search(r'<title>([^<]+)</title>', content)
                 desc_match = re.search(r'<meta name="description" content="([^"]+)"', content)
-                
+
                 pub_date = date_match.group(1).split('T')[0] if date_match else f"2025-10-{9+week_num:02d}"
                 title = f"GenAi-Managed Stocks Portfolio Week {week_num}"
                 desc = desc_match.group(1) if desc_match else f"Week {week_num} AI portfolio performance update."
-                
+
                 # Determine hero image
                 hero_img = f"../Media/W{week_num}.webp" if (REPO_ROOT / f"Media/W{week_num}.webp").exists() else "../Media/Hero.webp"
-                
+
                 posts_meta.append({
                     'week': week_num,
                     'url': f"https://quantuminvestor.net/Posts/GenAi-Managed-Stocks-Portfolio-Week-{week_num}.html",
@@ -2305,7 +2305,7 @@ Generate the complete HTML file for Week {self.week_number}.
                     'date': pub_date,
                     'hero': hero_img
                 })
-        
+
         # Build JSON-LD ItemList
         item_list_items = [
             {
@@ -2317,7 +2317,7 @@ Generate the complete HTML file for Week {self.week_number}.
             }
             for idx, post in enumerate(posts_meta)
         ]
-        
+
         item_list_json = {
             "@context": "https://schema.org",
             "@type": "CollectionPage",
@@ -2329,7 +2329,7 @@ Generate the complete HTML file for Week {self.week_number}.
                 "itemListElement": item_list_items
             }
         }
-        
+
         breadcrumb_json = {
             "@context": "https://schema.org",
             "@type": "BreadcrumbList",
@@ -2338,17 +2338,17 @@ Generate the complete HTML file for Week {self.week_number}.
                 {"@type": "ListItem", "position": 2, "name": "Blog", "item": "https://quantuminvestor.net/Posts/posts.html"}
             ]
         }
-        
+
         # Build HTML cards
         cards_html = []
         for idx, post in enumerate(posts_meta):
             # Format date for display
             date_obj = datetime.strptime(post['date'], '%Y-%m-%d')
             date_display = date_obj.strftime('%B %d, %Y')
-            
+
             # Only first card gets fetchpriority
             loading_attr = 'fetchpriority="high"' if idx == 0 else 'loading="lazy"'
-            
+
             card_html = f'''                <a href="{post['relative_url']}" class="group">
                     <div class="space-y-3">
                         <div class="relative h-48 rounded-lg overflow-hidden border border-gray-800 group-hover:border-purple-500/50 transition-colors">
@@ -2364,10 +2364,10 @@ Generate the complete HTML file for Week {self.week_number}.
                     </div>
                 </a>'''
             cards_html.append(card_html)
-        
+
         # Get newest hero for OG image
         og_image = f"https://quantuminvestor.net/Media/W{posts_meta[0]['week']}.webp" if posts_meta else "https://quantuminvestor.net/Media/Hero.webp"
-        
+
         # Generate complete posts.html with nonce CSP
         csp_policy = CSP_POLICY_TEMPLATE.format(nonce=self.nonce)
         posts_html = f'''<!DOCTYPE html>
@@ -2424,48 +2424,48 @@ Generate the complete HTML file for Week {self.week_number}.
     <div data-template="footer" data-root-path="../"></div>
 </body>
 </html>'''
-        
+
         output_path = POSTS_DIR / "posts.html"
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(posts_html)
-        
+
         logging.info(f"Generated posts.html with {len(posts_meta)} weekly posts")
-    
+
     def _regenerate_index_recent_posts(self):
         """Update Recent Posts section in index.html with latest 6 posts (if 6 exist)"""
         logging.info("Updating Recent Posts section in index.html...")
-        
+
         # Collect all weekly post metadata (reuse logic from _regenerate_posts_listing)
         post_files = sorted(
             POSTS_DIR.glob("GenAi-Managed-Stocks-Portfolio-Week-*.html"),
             key=lambda p: int(re.search(r'Week-(\d+)', p.name).group(1)),
             reverse=True
         )
-        
+
         posts_meta = []
         for post_file in post_files:
             try:
                 with open(post_file, 'r', encoding='utf-8') as f:
                     content = f.read()
-                
+
                 week_match = re.search(r'Week-(\d+)', post_file.name)
                 if not week_match:
                     continue
-                
+
                 week = int(week_match.group(1))
-                
+
                 # Extract title
                 title_match = re.search(r'<h1[^>]*>(.*?)</h1>', content, re.DOTALL)
                 title = re.sub(r'<[^>]+>', '', title_match.group(1)).strip() if title_match else f"Week {week}"
-                
+
                 # Extract description from meta tag
                 desc_match = re.search(r'<meta name="description" content="([^"]+)"', content)
                 description = desc_match.group(1) if desc_match else ""
-                
+
                 # Extract date (split at 'T' to handle ISO timestamps)
                 date_match = re.search(r'<time datetime="([^"]+)"', content)
                 date = date_match.group(1).split('T')[0] if date_match else f"2025-10-{9+week:02d}"
-                
+
                 posts_meta.append({
                     'week': week,
                     'title': title,
@@ -2476,19 +2476,19 @@ Generate the complete HTML file for Week {self.week_number}.
                 })
             except Exception as e:
                 logging.warning(f"Failed to extract metadata from {post_file.name}: {e}")
-        
+
         # Take up to 6 most recent posts for index.html
         recent_posts = posts_meta[:6]
-        
+
         # Build HTML cards for recent posts
         cards_html = []
         for idx, post in enumerate(recent_posts):
             date_obj = datetime.strptime(post['date'], '%Y-%m-%d')
             date_display = date_obj.strftime('%B %d, %Y')
-            
+
             # First card gets fetchpriority, rest lazy load
             loading_attr = 'loading="lazy"' if idx > 0 else 'loading="eager" fetchpriority="high"'
-            
+
             card_html = f'''                <!-- Article Card {idx + 1} -->
                 <a href="{post['relative_url']}" class="group">
                     <div class="space-y-3">
@@ -2505,35 +2505,35 @@ Generate the complete HTML file for Week {self.week_number}.
                     </div>
                 </a>'''
             cards_html.append(card_html)
-        
+
         # Read current index.html
         index_path = REPO_ROOT / "index.html"
         if not index_path.exists():
             logging.error("index.html not found at root")
             return
-        
+
         with open(index_path, 'r', encoding='utf-8') as f:
             index_html = f.read()
-        
+
         # Replace Recent Posts section (everything between the grid div opening and closing)
         # Pattern: Find the grid div inside Recent Posts section and replace its contents
         # Use a more specific pattern that matches the section structure
         pattern = r'(<section class="mb-20">\s*<h2 class="text-2xl font-bold mb-8">Recent Posts</h2>\s*<div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">)(.*?)(</div>\s*</section>)'
-        
+
         replacement = r'\1\n' + '\n'.join(cards_html) + '\n            \3'
-        
+
         updated_html = re.sub(pattern, replacement, index_html, flags=re.DOTALL)
-        
+
         if updated_html == index_html:
             logging.warning("Could not find Recent Posts section pattern in index.html")
             return
-        
+
         # Write updated index.html
         with open(index_path, 'w', encoding='utf-8') as f:
             f.write(updated_html)
-        
+
         logging.info(f"Updated index.html Recent Posts with {len(recent_posts)} latest posts")
-    
+
     def run(self):
         """Execute full pipeline"""
         logging.info("="*60)
@@ -2542,11 +2542,11 @@ Generate the complete HTML file for Week {self.week_number}.
 
         try:
             self.load_master_json()
-            
+
             # Validate date immediately after load to fail fast
             new_date = self.eval_date if self.eval_date else self._latest_market_date()
             prev_date = self.master_json['meta']['current_date']
-            
+
             if new_date == prev_date:
                 error_msg = (
                     f"Duplicate week detected: Evaluation date {new_date} equals previous date in master.json. "
@@ -2556,16 +2556,16 @@ Generate the complete HTML file for Week {self.week_number}.
                 logging.error(error_msg)
                 self.add_step("Validate Date", "error", error_msg)
                 raise ValueError(error_msg)
-            
+
             # Cache validated date for use throughout pipeline
             self.validated_new_date = new_date
-            
+
             # Step 1: Data acquisition and calculation (MUST succeed or abort)
             # Always use Alpha Vantage method - it fetches prices AND calculates metrics
             updated_master = self.generate_master_from_alphavantage()
             if not updated_master:
                 raise ValueError("Data engine failed to generate master.json")
-            
+
             # Step 2: Data validation (ALWAYS run when AI is enabled, non-fatal)
             # NOTE: This returns a dict (not exception) because validation is non-fatal
             # Even if validation fails, we continue with the generated data
@@ -2580,12 +2580,12 @@ Generate the complete HTML file for Week {self.week_number}.
                     logging.info("✅ Validation passed - calculations verified")
             else:
                 logging.warning("⚠ AI not enabled - skipping Prompt A validation")
-            
+
             # Step 3: Visual generation (deterministic Python, no AI needed)
             self.generate_visuals()
             if not self.performance_table or not self.performance_chart:
                 raise ValueError("Visual components generation failed")
-            
+
             # Step 4: Narrative generation (requires AI)
             if self.ai_enabled:
                 # All-or-nothing: generate content first, write file only if successful
@@ -2600,10 +2600,10 @@ Generate the complete HTML file for Week {self.week_number}.
                 logging.info("Data-only mode: Generating summary report...")
                 logging.info("="*60)
                 self._generate_data_only_report()
-                self.add_step("Generate Data Report", "success", 
+                self.add_step("Generate Data Report", "success",
                              f"Data-only report saved to Data/W{self.week_number}/data_report.txt")
                 self.report['success'] = True
-                
+
                 logging.info("="*60)
                 logging.info(f"✅ SUCCESS! Week {self.week_number} data collected")
                 logging.info("="*60)
@@ -2620,7 +2620,7 @@ Generate the complete HTML file for Week {self.week_number}.
                 logging.info("")
                 logging.info("  NOTE: Data-only mode - no HTML article generated")
                 logging.info("        Use --data-source=ai for full pipeline with narrative")
-                
+
                 # Print detailed execution report
                 self.print_report()
                 # CRITICAL: Exit here to skip Step 5 (update_index_pages) in data-only mode
@@ -2629,15 +2629,15 @@ Generate the complete HTML file for Week {self.week_number}.
 
             try:
                 self.update_index_pages()
-                self.add_step("Update Index Pages", "success", 
+                self.add_step("Update Index Pages", "success",
                              "Regenerated posts.html with updated listing")
             except Exception as e:
-                self.add_step("Update Index Pages", "warning", 
+                self.add_step("Update Index Pages", "warning",
                              f"Failed to update index pages: {str(e)}")
 
             # Mark overall success
             self.report['success'] = True
-            
+
             logging.info("="*60)
             logging.info(f"✅ SUCCESS! Week {self.week_number} generated")
             logging.info("="*60)
@@ -2652,25 +2652,25 @@ Generate the complete HTML file for Week {self.week_number}.
             logging.info(f"    • Data/W{self.week_number}/master.json (legacy compatibility)")
             if not self.ai_enabled:
                 logging.info("  NOTE: Data-only mode (enable GH_TOKEN for full narrative)")
-            
+
             # Print detailed execution report
             self.print_report()
-            
+
         except Exception as e:
             self.report['success'] = False
             logging.error(f"ERROR: {str(e)}")
             import traceback
             traceback.print_exc()
-            
+
             # Print report even on failure
             self.print_report()
             sys.exit(1)
 
 def main():
     parser = argparse.ArgumentParser(description='Automate weekly portfolio update')
-    parser.add_argument('--week', type=str, default='auto', 
+    parser.add_argument('--week', type=str, default='auto',
                        help='Week number (default: auto-detect next week)')
-    parser.add_argument('--github-token', type=str, 
+    parser.add_argument('--github-token', type=str,
                        help='[DEPRECATED] Not used with Azure OpenAI')
     parser.add_argument('--model', type=str, default='gpt-5.1-chat',
                        help='Azure OpenAI deployment name (default: gpt-5.1-chat)')

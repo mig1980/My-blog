@@ -20,15 +20,15 @@
     async function loadTemplate(element) {
         const templateName = element.getAttribute('data-template');
         const rootPath = element.getAttribute('data-root-path') || getRootPath();
-        
+
         try {
             const response = await fetch(`${rootPath}templates/${templateName}.html`);
             if (!response.ok) throw new Error(`Failed to load ${templateName}`);
-            
+
             let html = await response.text();
             // Replace {{rootPath}} placeholder with actual path
             html = html.replace(/\{\{rootPath\}\}/g, rootPath);
-            
+
             element.innerHTML = html;
 
             // Re-execute any scripts embedded in the template

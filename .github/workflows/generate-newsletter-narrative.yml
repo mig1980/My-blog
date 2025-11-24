@@ -11,21 +11,21 @@ on:
 jobs:
   generate-narrative:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      
+
       - name: Install dependencies
         run: |
           cd scripts
           pip install -r requirements.txt
-      
+
       - name: Generate narrative JSON
         env:
           AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
@@ -36,14 +36,14 @@ jobs:
           else
             python generate_newsletter_narrative.py
           fi
-      
+
       - name: Upload narrative artifact
         uses: actions/upload-artifact@v4
         with:
           name: newsletter-narrative
           path: newsletters/week*_narrative.json
           retention-days: 30
-      
+
       - name: Summary
         run: |
           echo "✅ Newsletter narrative generated successfully" >> $GITHUB_STEP_SUMMARY

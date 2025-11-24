@@ -29,18 +29,18 @@
     const base = window.location.pathname.includes('/Posts/') ? '../master data' : 'master data';
     let data = await fetchJson(`${base}/master.json`);
     if(data) return data;
-    
+
     // Fallback to legacy weekly folders if consolidated file not available
     const legacyBase = window.location.pathname.includes('/Posts/') ? '../Data' : 'Data';
     data = await fetchJson(`${legacyBase}/W${weekNum}/master.json`);
     if(data) return data;
-    
+
     // Fallback to previous week (handles early publication)
     if(weekNum > 1){
       data = await fetchJson(`${legacyBase}/W${weekNum-1}/master.json`);
       if(data) return data;
     }
-    
+
     return null;
   }
 

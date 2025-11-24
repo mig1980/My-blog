@@ -99,7 +99,7 @@ a {
 }
 
 /* Improve button and interactive element accessibility */
-button, 
+button,
 a[href] {
   /* Ensure minimum touch target size on mobile */
   min-height: 44px;
@@ -1417,11 +1417,11 @@ img {
   .desktop-nav {
     display: none;
   }
-  
+
   .mobile-menu-button {
     display: flex;
   }
-  
+
   .mobile-menu-overlay {
     display: block;
   }
@@ -1432,11 +1432,11 @@ img {
   .mobile-menu-button {
     display: none !important;
   }
-  
+
   .mobile-menu-overlay {
     display: none !important;
   }
-  
+
   .desktop-nav {
     display: flex;
   }
@@ -2057,4 +2057,3 @@ body[data-theme="alt"] .tldr-error { color:#f87171; }
     height: 160px;
   }
 }
-

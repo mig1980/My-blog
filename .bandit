@@ -1,0 +1,22 @@
+# Bandit security configuration
+# Documentation: https://bandit.readthedocs.io/en/latest/config.html
+
+# Exclude specific directories (comma-separated)
+exclude_dirs:
+  - /tests
+  - /__pycache__
+  - /venv
+  - /env
+  - /.venv
+
+# Test IDs to skip (add as needed)
+# B101: assert_used - OK for testing
+# B601: paramiko_calls - We don't use paramiko
+# B602: shell_usage_with_no_shell_equals_true - We validate shell usage
+skips: []
+
+# Only report issues at this severity level or higher (low, medium, high)
+level: low
+
+# Only report issues at this confidence level or higher (low, medium, high)
+confidence: low

@@ -64,7 +64,7 @@
     <div data-template="header" data-root-path=""></div>
 
     <main id="main-content" class="container mx-auto px-4 py-12" role="main">
-        
+
         <!-- Hero Section -->
         <section class="docs-hero mb-12">
             <div class="docs-hero-inner">
@@ -77,7 +77,7 @@
                         Architecture, Tech Stack & <span class="text-purple-500">AI Automation</span>
                     </h1>
                     <p class="docs-hero-subtitle">
-                        Comprehensive technical documentation of the GenAI-powered portfolio management system: 
+                        Comprehensive technical documentation of the GenAI-powered portfolio management system:
                         infrastructure, automation workflows, methodology, and best practices.
                     </p>
                     <div class="docs-hero-metrics">
@@ -123,10 +123,10 @@
 
         <!-- Main Content Grid -->
         <div class="docs-grid">
-            
+
             <!-- Left Column: Main Content -->
             <div class="space-y-6">
-                
+
                 <!-- Tech Stack Section -->
                 <section id="tech-stack" class="docs-section-card">
                     <h2>
@@ -138,10 +138,10 @@
                     </h2>
                     <div class="docs-section-body">
                         <p class="text-gray-400 mb-4">
-                            A modern, cloud-native stack combining Python automation, AI-powered content generation, 
+                            A modern, cloud-native stack combining Python automation, AI-powered content generation,
                             and static site deployment for maximum performance and reliability.
                         </p>
-                        
+
                         <h3 class="text-xl font-semibold mt-6 mb-3">Backend & Automation</h3>
                         <div class="docs-chips-row">
                             <span class="docs-chip">🐍 Python 3.10+</span>
@@ -152,8 +152,8 @@
                             <span class="docs-chip">🤖 GPT-5.1-chat</span>
                         </div>
                         <p class="text-gray-400 text-sm mt-3">
-                            Python orchestrates the entire automation pipeline: fetching real-time market data from multiple 
-                            financial APIs, calculating portfolio metrics, validating calculations, generating visual components, 
+                            Python orchestrates the entire automation pipeline: fetching real-time market data from multiple
+                            financial APIs, calculating portfolio metrics, validating calculations, generating visual components,
                             and coordinating AI-driven content creation through Azure OpenAI's GPT-5.1-chat deployment.
                         </p>
 
@@ -166,8 +166,8 @@
                             <span class="docs-chip">🔒 CSP Headers</span>
                         </div>
                         <p class="text-gray-400 text-sm mt-3">
-                            Zero-dependency frontend architecture prioritizing performance, accessibility, and security. 
-                            Custom utility CSS system provides Tailwind-like flexibility without build complexity. 
+                            Zero-dependency frontend architecture prioritizing performance, accessibility, and security.
+                            Custom utility CSS system provides Tailwind-like flexibility without build complexity.
                             Mobile-first responsive design with optimized touch targets and viewport handling.
                         </p>
 
@@ -180,8 +180,8 @@
                             <span class="docs-chip">🔄 Automated Backups</span>
                         </div>
                         <p class="text-gray-400 text-sm mt-3">
-                            Single source of truth: <code>master.json</code> consolidates all portfolio history, stock prices, 
-                            benchmark data, and normalized performance metrics. Timestamped backups archived automatically. 
+                            Single source of truth: <code>master.json</code> consolidates all portfolio history, stock prices,
+                            benchmark data, and normalized performance metrics. Timestamped backups archived automatically.
                             Git provides complete audit trail and rollback capability. Static hosting ensures blazing-fast global delivery.
                         </p>
 
@@ -194,8 +194,8 @@
                             <span class="docs-chip">🔢 Real-Time Metrics</span>
                         </div>
                         <p class="text-gray-400 text-sm mt-3">
-                            Deterministic visual generation using Python eliminates AI unpredictability. SVG charts scale perfectly 
-                            across devices. Performance tables with responsive breakpoints ensure readability on all screens. 
+                            Deterministic visual generation using Python eliminates AI unpredictability. SVG charts scale perfectly
+                            across devices. Performance tables with responsive breakpoints ensure readability on all screens.
                             Custom CSS classes maintain visual consistency.
                         </p>
 
@@ -209,8 +209,8 @@
                             <span class="docs-chip">🧪 Validation Pipeline</span>
                         </div>
                         <p class="text-gray-400 text-sm mt-3">
-                            Modular prompt architecture (A: Validator, B: Narrative, D: Assembler) enables AI specialization. 
-                            Error handling strategy distinguishes fatal (data fetch) vs non-fatal (validation) failures. 
+                            Modular prompt architecture (A: Validator, B: Narrative, D: Assembler) enables AI specialization.
+                            Error handling strategy distinguishes fatal (data fetch) vs non-fatal (validation) failures.
                             Retry logic with exponential backoff handles API rate limits gracefully.
                         </p>
                     </div>
@@ -227,10 +227,10 @@
                     </h2>
                     <div class="docs-section-body">
                         <p class="text-gray-400 mb-4">
-                            A sophisticated 5-stage pipeline that autonomously transforms raw market data into 
+                            A sophisticated 5-stage pipeline that autonomously transforms raw market data into
                             publication-ready weekly performance reports with AI-generated narratives.
                         </p>
-                        
+
                         <h3 class="text-xl font-semibold mt-6 mb-3">Stage 1: Data Acquisition</h3>
                         <div class="docs-chips-row">
                             <span class="docs-chip">📊 Alpha Vantage API</span>
@@ -240,8 +240,8 @@
                             <span class="docs-chip">⏱️ Rate Limiting</span>
                         </div>
                         <p class="text-gray-400 text-sm mt-3">
-                            Fetch current prices from Alpha Vantage (primary), with automatic fallback to Finnhub and Marketstack. 
-                            Rate limiting enforced (12s between Alpha Vantage calls). Retry logic with exponential backoff handles 
+                            Fetch current prices from Alpha Vantage (primary), with automatic fallback to Finnhub and Marketstack.
+                            Rate limiting enforced (12s between Alpha Vantage calls). Retry logic with exponential backoff handles
                             transient network errors. Updates <code>master.json</code> with new price entries for all portfolio stocks and benchmarks.
                         </p>
 
@@ -254,8 +254,8 @@
                             <span class="docs-chip">📈 Portfolio History</span>
                         </div>
                         <p class="text-gray-400 text-sm mt-3">
-                            Calculate weekly and total percentage changes for all stocks, portfolio totals, and benchmarks using pure Python. 
-                            Generate normalized chart data (base 100 at inception) for visual comparison. Update portfolio history with new 
+                            Calculate weekly and total percentage changes for all stocks, portfolio totals, and benchmarks using pure Python.
+                            Generate normalized chart data (base 100 at inception) for visual comparison. Update portfolio history with new
                             weekly entry. All calculations deterministic with no AI involvement for accuracy and reproducibility.
                         </p>
 
@@ -268,8 +268,8 @@
                             <span class="docs-chip">🔍 Cross-Check</span>
                         </div>
                         <p class="text-gray-400 text-sm mt-3">
-                            AI agent validates mathematical correctness of all calculations: weekly/total returns, portfolio totals, 
-                            benchmark comparisons. Cross-checks against previous week's data for consistency. Generates PASS/FAIL 
+                            AI agent validates mathematical correctness of all calculations: weekly/total returns, portfolio totals,
+                            benchmark comparisons. Cross-checks against previous week's data for consistency. Generates PASS/FAIL
                             validation report.
                         </p>
 
@@ -282,7 +282,7 @@
                             <span class="docs-chip">🎯 Pixel-Perfect</span>
                         </div>
                         <p class="text-gray-400 text-sm mt-3">
-                            Python generates performance table (HTML) and normalized line chart (SVG) deterministically from 
+                            Python generates performance table (HTML) and normalized line chart (SVG) deterministically from
                             <code>master.json</code> metrics. SVG charts scale perfectly across devices. Performance tables include responsive breakpoints for mobile/tablet/desktop.
                         </p>
 
@@ -295,8 +295,8 @@
                             <span class="docs-chip">🎯 ~3000 tokens</span>
                         </div>
                         <p class="text-gray-400 text-sm mt-3">
-                            AI generates weekly narrative analyzing performance, top winners/losers, risk factors, and outlook. 
-                            Also creates SEO metadata (title, description, Open Graph tags). Token optimization extracts minimal 
+                            AI generates weekly narrative analyzing performance, top winners/losers, risk factors, and outlook.
+                            Also creates SEO metadata (title, description, Open Graph tags). Token optimization extracts minimal
                             data summary (~75% reduction) to stay under limits.
                         </p>
 
@@ -309,7 +309,7 @@
                             <span class="docs-chip">📊 Visual Embedding</span>
                         </div>
                         <p class="text-gray-400 text-sm mt-3">
-                            AI assembles complete HTML page combining narrative, performance table, normalized chart, and SEO metadata. 
+                            AI assembles complete HTML page combining narrative, performance table, normalized chart, and SEO metadata.
                             Applies security headers (CSP with nonce), injects TLDR strip, links header/footer templates.
                         </p>
                     </div>
@@ -326,7 +326,7 @@
                     </h2>
                     <div class="docs-section-body">
                         <p class="text-gray-400 mb-4">
-                            This project follows industry best practices for AI-assisted development, security, 
+                            This project follows industry best practices for AI-assisted development, security,
                             accessibility, and responsible automation.
                         </p>
 
@@ -339,9 +339,9 @@
                             <span class="docs-chip">📊 Deterministic Visuals</span>
                         </div>
                         <p class="text-gray-400 text-sm mt-3">
-                            Specialized prompts (A: Validation, B: Narrative, D: Assembly) enable focused AI behavior. GPT-5.1 uses default temperature (1.0) 
-                            for consistent, reliable outputs across all stages. Token optimization extracts minimal data summaries 
-                            (~75% reduction). Visual generation moved from AI to Python for pixel-perfect consistency. Fallback chains handle 
+                            Specialized prompts (A: Validation, B: Narrative, D: Assembly) enable focused AI behavior. GPT-5.1 uses default temperature (1.0)
+                            for consistent, reliable outputs across all stages. Token optimization extracts minimal data summaries
+                            (~75% reduction). Visual generation moved from AI to Python for pixel-perfect consistency. Fallback chains handle
                             AI failures gracefully (SEO generation) and API cascades (Alpha Vantage → Finnhub → Marketstack).
                         </p>
 
@@ -354,9 +354,9 @@
                             <span class="docs-chip">🔍 Dependency Scanning</span>
                         </div>
                         <p class="text-gray-400 text-sm mt-3">
-                            Strict CSP headers with nonce-based script execution prevent XSS attacks while allowing CDN resources. 
-                            All API keys stored in environment variables, never committed to Git. Only essential metrics sent to AI; 
-                            no PII or sensitive account details. GitHub Pages provides free SSL; all external resources loaded over HTTPS. 
+                            Strict CSP headers with nonce-based script execution prevent XSS attacks while allowing CDN resources.
+                            All API keys stored in environment variables, never committed to Git. Only essential metrics sent to AI;
+                            no PII or sensitive account details. GitHub Pages provides free SSL; all external resources loaded over HTTPS.
                             Regular updates to Python packages; minimal dependency footprint reduces attack surface.
                         </p>
 
@@ -369,8 +369,8 @@
                             <span class="docs-chip">🌐 CDN Delivery</span>
                         </div>
                         <p class="text-gray-400 text-sm mt-3">
-                            No server-side processing; sub-100ms Time to First Byte (TTFB). Images below fold loaded on-demand. Single stylesheet with utility classes 
-                            avoids duplication; no unused CSS in critical path. All scripts deferred or async; no render-blocking JS. 
+                            No server-side processing; sub-100ms Time to First Byte (TTFB). Images below fold loaded on-demand. Single stylesheet with utility classes
+                            avoids duplication; no unused CSS in critical path. All scripts deferred or async; no render-blocking JS.
                             WebP images provide 25-35% smaller file sizes vs JPEG/PNG. GitHub Pages served via CDN with global edge locations.
                         </p>
 
@@ -382,8 +382,8 @@
                             <span class="docs-chip">📊 Error Logging</span>
                         </div>
                         <p class="text-gray-400 text-sm mt-3">
-                            Git tracks every change with meaningful commit messages and atomic commits for easy rollback. 
-                            GitHub Copilot catches bugs and suggests improvements during development. Re-running automation with same inputs produces identical outputs (except AI temperature variations). 
+                            Git tracks every change with meaningful commit messages and atomic commits for easy rollback.
+                            GitHub Copilot catches bugs and suggests improvements during development. Re-running automation with same inputs produces identical outputs (except AI temperature variations).
                             File writes use temp files + atomic rename to prevent corruption on failure.
                         </p>
 
@@ -396,9 +396,9 @@
                             <span class="docs-chip">🧪 A/B Testing</span>
                         </div>
                         <p class="text-gray-400 text-sm mt-3">
-                            Prompt engineering improved through A/B testing and user feedback. Weekly review of automation execution time, 
-                            API costs, and token usage trends. Monthly check for security patches and feature improvements. 
-                            Analytics track page views, bounce rates, and engagement; insights inform UX improvements. 
+                            Prompt engineering improved through A/B testing and user feedback. Weekly review of automation execution time,
+                            API costs, and token usage trends. Monthly check for security patches and feature improvements.
+                            Analytics track page views, bounce rates, and engagement; insights inform UX improvements.
                             Continuous iteration on all aspects of the system based on real-world performance data.
                         </p>
                     </div>

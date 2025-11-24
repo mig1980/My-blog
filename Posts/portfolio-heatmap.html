@@ -12,20 +12,20 @@
   <script src="../js/mobile-menu.js" defer></script>
   <style>
     body { font-family: system-ui, sans-serif; }
-    
+
     .view-toggle { display:flex; gap:.75rem; margin:1.5rem 0; }
     .view-toggle button { background:#181818; border:1px solid #282828; padding:.6rem 1.2rem; font-size:.85rem; border-radius:.5rem; cursor:pointer; transition:all .2s; }
     .view-toggle button.active { background:#7e5bef; border-color:#9575ff; color:white; }
-    
+
     .heatmap-container { display:grid; gap:.5rem; margin:2rem 0; }
-    
+
     /* Grid view */
     .heatmap-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:.75rem; }
-    .heat-cell { 
-      position:relative; 
-      padding:1.25rem 1rem; 
-      border-radius:.75rem; 
-      border:1px solid rgba(255,255,255,.1); 
+    .heat-cell {
+      position:relative;
+      padding:1.25rem 1rem;
+      border-radius:.75rem;
+      border:1px solid rgba(255,255,255,.1);
       cursor:pointer;
       transition:all .25s ease;
       display:flex;
@@ -36,18 +36,18 @@
     .heat-cell .ticker { font-size:1.1rem; font-weight:700; letter-spacing:.02em; }
     .heat-cell .company { font-size:.7rem; color:#999; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .heat-cell .perf { font-size:1.5rem; font-weight:700; margin:.25rem 0; }
-    
+
     /* List view */
     .heatmap-list { display:flex; flex-direction:column; gap:.5rem; }
-    .heat-row { 
-      display:grid; 
+    .heat-row {
+      display:grid;
       /* Simplified: ticker, company, performance bar */
-      grid-template-columns: 80px 1fr 180px; 
-      gap:1rem; 
-      align-items:center; 
-      padding:1rem 1.25rem; 
-      background:#0c0c0c; 
-      border:1px solid #222; 
+      grid-template-columns: 80px 1fr 180px;
+      gap:1rem;
+      align-items:center;
+      padding:1rem 1.25rem;
+      background:#0c0c0c;
+      border:1px solid #222;
       border-radius:.5rem;
       cursor:pointer;
       transition:all .2s;
@@ -58,7 +58,7 @@
     .heat-row .perf-bar-container { position:relative; height:24px; background:#1a1a1a; border-radius:.3rem; overflow:hidden; }
     .heat-row .perf-bar { height:100%; border-radius:.3rem; transition:width .3s; }
     .heat-row .perf-label { position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); font-size:.75rem; font-weight:700; z-index:1; color:#fff; }
-    
+
     .legend { display:flex; gap:1.5rem; align-items:center; margin:1rem 0; font-size:.75rem; }
     .legend-item { display:flex; align-items:center; gap:.5rem; }
     .legend-box { width:20px; height:20px; border-radius:.3rem; }
@@ -77,7 +77,7 @@
     #weekSelect { background:#181818; color:#eee; border:1px solid #282828; padding:.45rem .75rem; border-radius:.5rem; font-size:.8rem; cursor:pointer; }
     #weekSelect:focus { outline:2px solid #7e5bef; outline-offset:2px; }
     .week-badge { background:#222; padding:.35rem .6rem; border-radius:.4rem; font-size:.65rem; letter-spacing:.05em; color:#bbb; }
-    
+
     @media (max-width:768px){
       .heat-row { grid-template-columns: 70px 1fr 100px; gap:.5rem; padding:.75rem 1rem; }
       .heatmap-grid { grid-template-columns:1fr; }
@@ -101,27 +101,27 @@
       <button id="btnWeekly" data-metric="weekly">Weekly %</button>
       <button id="btnTotal" data-metric="total" class="active">Total %</button>
     </div>
-    
+
     <div class="legend">
       <div class="legend-item"><div class="legend-box" style="background:#16a34a;"></div><span>Gain</span></div>
       <div class="legend-item"><div class="legend-box" style="background:#333;"></div><span>Flat</span></div>
       <div class="legend-item"><div class="legend-box" style="background:#f87171;"></div><span>Loss</span></div>
     </div>
-    
+
     <div id="heatmapContainer" class="heatmap-container"></div>
-    
+
     <div class="panel mt-8" style="background:#0c0c0c; border:1px solid #222; padding:1.5rem; border-radius:.75rem;">
       <h2 class="text-xl font-bold mb-3">About This Visualization</h2>
       <p class="text-sm text-gray-300 leading-relaxed">
-        The heatmap provides an at-a-glance view of portfolio composition and individual stock performance. 
-        Color intensity represents performance magnitude—greens indicate gains, reds show losses, and gray represents flat performance. 
-        Each cell displays the ticker, company name, and current performance percentage. 
-        Toggle between weekly and total performance metrics to analyze different timeframes. 
+        The heatmap provides an at-a-glance view of portfolio composition and individual stock performance.
+        Color intensity represents performance magnitude—greens indicate gains, reds show losses, and gray represents flat performance.
+        Each cell displays the ticker, company name, and current performance percentage.
+        Toggle between weekly and total performance metrics to analyze different timeframes.
         Hover over any stock to view detailed metrics including shares, value, and portfolio weight.
       </p>
     </div>
   </main>
-  
+
   <div data-template="footer" data-root-path="../"></div>
 
 <script>
@@ -140,7 +140,7 @@
   async function loadMasterData(){
     const res = await fetch('../master data/master.json');
     masterData = await res.json();
-    
+
     // Discover available weeks from portfolio_history
     // First entry (index 0) is inception (W0), subsequent entries are W1, W2, etc.
     // Only include weeks that have complete stock price data
@@ -167,7 +167,7 @@
     });
     weekMeta.textContent = `Latest: ${availableWeeks[availableWeeks.length-1]}`;
   }
-  
+
   function formatPct(pct) {
     if (pct === null || pct === undefined) return 'N/A';
     return (pct > 0 ? '+' : '') + pct.toFixed(2) + '%';
@@ -177,12 +177,12 @@
     // Extract data for specific week from master data
     const weekEntry = masterData.portfolio_history[weekIndex];
     const date = weekEntry.date;
-    
+
     // Use pre-calculated metrics from master data stocks array
     const weekStocks = masterData.stocks.map(stock => {
       const priceAtWeek = stock.prices[date];
       const priceAtInception = stock.prices[masterData.meta.inception_date];
-      
+
       // Calculate weekly change (compare to previous week)
       let weekly_pct = 0;
       if (weekIndex > 1) {
@@ -197,12 +197,12 @@
           weekly_pct = ((priceAtWeek - priceAtInception) / priceAtInception) * 100;
         }
       }
-      
+
       // Calculate total change from inception
-      const total_pct = priceAtInception && priceAtWeek 
-        ? ((priceAtWeek - priceAtInception) / priceAtInception) * 100 
+      const total_pct = priceAtInception && priceAtWeek
+        ? ((priceAtWeek - priceAtInception) / priceAtInception) * 100
         : 0;
-      
+
       return {
         ticker: stock.ticker,
         name: stock.name,
@@ -214,7 +214,7 @@
         prices: stock.prices
       };
     });
-    
+
     return {
       date: date,
       stocks: weekStocks,
@@ -224,16 +224,16 @@
 
   async function loadWeek(){
     if(!currentWeek || !masterData) return;
-    
+
     const weekNum = parseInt(currentWeek.substring(1));
     // Week numbers map directly to array indices (W1 = index 1, W2 = index 2, etc.)
     const weekIndex = weekNum;
-    
+
     if (weekIndex < 1 || weekIndex >= masterData.portfolio_history.length) {
       console.error('Invalid week index:', weekIndex);
       return;
     }
-    
+
     const weekData = extractWeekData(weekIndex);
     stocks = weekData.stocks;
     renderHeatmap();

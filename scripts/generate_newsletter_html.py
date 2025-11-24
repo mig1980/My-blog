@@ -30,10 +30,10 @@ def generate_html(narrative_data: Dict[str, Any]) -> str:
     """
     Generate email-compatible HTML from narrative JSON.
     Uses table-based layout with inline styles for maximum email client compatibility.
-    
+
     Args:
         narrative_data: Dictionary containing newsletter narrative data
-        
+
     Returns:
         Complete HTML string optimized for email clients
     """
@@ -47,26 +47,26 @@ def generate_html(narrative_data: Dict[str, Any]) -> str:
     market_context = narrative_data['market_context']
     benchmark = narrative_data['benchmark_comparison']
     cta_url = narrative_data['call_to_action_url']
-    
+
     # Format performance values
     weekly_change = perf_data['weekly_change']
     total_return = perf_data['total_return']
     weekly_sign = '+' if weekly_change >= 0 else ''
     total_sign = '+' if total_return >= 0 else ''
-    
+
     # Banner color based on performance
     banner_color = '#28a745' if weekly_change >= 0 else '#dc3545'
-    
+
     # Format benchmark percentages
     portfolio_weekly = benchmark['portfolio_weekly']
     sp500_weekly = benchmark['sp500_weekly']
     bitcoin_weekly = benchmark['bitcoin_weekly']
     benchmark_summary = benchmark['summary']
-    
+
     # Format top/worst performer
     top_performer = perf_data['top_performer']
     worst_performer = perf_data['worst_performer']
-    
+
     # Generate insights HTML (table-based for email compatibility)
     insights_html = []
     for insight in insights:
@@ -82,16 +82,16 @@ def generate_html(narrative_data: Dict[str, Any]) -> str:
                                     </td>
                                 </tr>
                                 <tr><td height="16"></td></tr>''')
-    
+
     insights_section = '\n'.join(insights_html)
-    
+
     # Determine banner gradient based on performance
     banner_gradient = 'linear-gradient(90deg, #16a34a 0%, #22c55e 100%)' if weekly_change >= 0 else 'linear-gradient(90deg, #991b1b 0%, #dc2626 100%)'
     banner_border = 'rgba(34, 197, 94, 0.3)' if weekly_change >= 0 else 'rgba(220, 38, 38, 0.3)'
-    
+
     # Format date range for display
     formatted_date = date_range.replace('to', '–')
-    
+
     # Email-compatible HTML using tables and inline styles
     html = f'''<!DOCTYPE html>
 <html lang="en">
@@ -152,7 +152,7 @@ def generate_html(narrative_data: Dict[str, Any]) -> str:
             <td align="center" style="padding: 40px 20px;">
                 <!-- Main container table (680px max-width) -->
                 <table role="presentation" width="680" cellspacing="0" cellpadding="0" border="0" style="max-width: 680px; width: 100%; background-color: #111111;">
-                    
+
                     <!-- Header -->
                     <tr>
                         <td align="center" style="background-color: #1a1a1a; padding: 48px 32px; border-bottom: 3px solid #6b7280;">
@@ -175,7 +175,7 @@ def generate_html(narrative_data: Dict[str, Any]) -> str:
                             </table>
                         </td>
                     </tr>
-                    
+
                     <!-- Performance Banner -->
                     <tr>
                         <td style="background-color: #111111; padding: 24px 32px;">
@@ -229,12 +229,12 @@ def generate_html(narrative_data: Dict[str, Any]) -> str:
                             </table>
                         </td>
                     </tr>
-                    
+
                     <!-- Main Content -->
                     <tr>
                         <td style="padding: 40px 32px; background-color: #111111;">
                             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
-                                
+
                                 <!-- Greeting Section -->
                                 <tr>
                                     <td style="background-color: #1a1a1a; padding: 24px; border-left: 3px solid #a855f7; margin-bottom: 32px;">
@@ -252,33 +252,33 @@ def generate_html(narrative_data: Dict[str, Any]) -> str:
                                         </table>
                                     </td>
                                 </tr>
-                                
+
                                 <!-- Spacing -->
                                 <tr><td height="32"></td></tr>
-                                
+
                                 <!-- Opening Paragraph -->
                                 <tr>
                                     <td style="font-size: 16px; line-height: 1.75; color: #E0E0E0; padding-bottom: 40px;">
                                         {opening}
                                     </td>
                                 </tr>
-                                
+
                                 <!-- Key Insights Title -->
                                 <tr>
                                     <td style="font-size: 22px; font-weight: 700; color: #a855f7; padding: 20px 0 24px 0; letter-spacing: -0.02em;">
                                         📊 Key Insights
                                     </td>
                                 </tr>
-                                
+
 {insights_section}
-                                
+
                                 <!-- Performance Highlights Title -->
                                 <tr>
                                     <td style="font-size: 22px; font-weight: 700; color: #a855f7; padding: 40px 0 24px 0; letter-spacing: -0.02em;">
                                         🎯 Performance Highlights
                                     </td>
                                 </tr>
-                                
+
                                 <!-- Performance Grid (Best/Worst) -->
                                 <tr>
                                     <td>
@@ -313,10 +313,10 @@ def generate_html(narrative_data: Dict[str, Any]) -> str:
                                         </table>
                                     </td>
                                 </tr>
-                                
+
                                 <!-- Spacing -->
                                 <tr><td height="32"></td></tr>
-                                
+
                                 <!-- Market Context -->
                                 <tr>
                                     <td style="background-color: rgba(168, 85, 247, 0.08); border: 1px solid rgba(168, 85, 247, 0.2); padding: 24px;">
@@ -328,14 +328,14 @@ def generate_html(narrative_data: Dict[str, Any]) -> str:
                                         </div>
                                     </td>
                                 </tr>
-                                
+
                                 <!-- Benchmark Title -->
                                 <tr>
                                     <td style="font-size: 22px; font-weight: 700; color: #a855f7; padding: 40px 0 24px 0; letter-spacing: -0.02em;">
                                         📊 Benchmark Comparison
                                     </td>
                                 </tr>
-                                
+
                                 <!-- Benchmark Summary -->
                                 <tr>
                                     <td style="background-color: #1a1a1a; border-left: 3px solid #a855f7; padding: 20px; margin: 24px 0;">
@@ -344,10 +344,10 @@ def generate_html(narrative_data: Dict[str, Any]) -> str:
                                         </div>
                                     </td>
                                 </tr>
-                                
+
                                 <!-- Spacing -->
                                 <tr><td height="24"></td></tr>
-                                
+
                                 <!-- Benchmark Grid (3 columns) -->
                                 <tr>
                                     <td>
@@ -395,7 +395,7 @@ def generate_html(narrative_data: Dict[str, Any]) -> str:
                                         </table>
                                     </td>
                                 </tr>
-                                
+
                                 <!-- CTA Button -->
                                 <tr>
                                     <td align="center" style="padding: 40px 0 32px 0;">
@@ -404,11 +404,11 @@ def generate_html(narrative_data: Dict[str, Any]) -> str:
                                         </a>
                                     </td>
                                 </tr>
-                                
+
                             </table>
                         </td>
                     </tr>
-                    
+
                     <!-- Footer -->
                     <tr>
                         <td style="background-color: #000000; border-top: 1px solid #1a1a1a; padding: 32px; text-align: center;">
@@ -443,14 +443,14 @@ def generate_html(narrative_data: Dict[str, Any]) -> str:
                             </table>
                         </td>
                     </tr>
-                    
+
                 </table>
             </td>
         </tr>
     </table>
 </body>
 </html>'''
-    
+
     return html
 
 def main():
@@ -458,25 +458,25 @@ def main():
     if len(sys.argv) < 2:
         print("Usage: python generate_newsletter_html.py <week_number>")
         sys.exit(1)
-    
+
     try:
         week_num = int(sys.argv[1])
     except ValueError:
         print(f"Error: Invalid week number '{sys.argv[1]}'. Must be an integer.")
         sys.exit(1)
-    
+
     # Paths
     base_dir = Path(__file__).parent.parent
     json_path = base_dir / 'newsletters' / f'week{week_num}_narrative.json'
     output_path = base_dir / 'newsletters' / f'week{week_num}_newsletter.html'
-    
+
     # Validate JSON exists
     if not json_path.exists():
         logging.error(f"Narrative JSON not found: {json_path}")
         print(f"❌ Error: {json_path} does not exist.")
         print(f"   Run Stage 1 first: python scripts/generate_newsletter_narrative.py {week_num}")
         sys.exit(1)
-    
+
     # Load narrative data
     logging.info(f"Loading narrative data from {json_path}")
     try:
@@ -486,16 +486,16 @@ def main():
         logging.error(f"Invalid JSON in {json_path}: {e}")
         print(f"❌ Error: Invalid JSON format in {json_path}")
         sys.exit(1)
-    
+
     # Generate HTML
     logging.info(f"Generating HTML for Week {week_num}")
     html_content = generate_html(narrative_data)
-    
+
     # Save HTML
     logging.info(f"Saving HTML to {output_path}")
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write(html_content)
-    
+
     # Success message
     print("\n" + "="*60)
     print("📧 STAGE 2 COMPLETE")
@@ -509,7 +509,7 @@ def main():
     print(f"2. Test both light and dark modes by switching OS theme")
     print(f"3. Send test email via your email service provider")
     print("="*60)
-    
+
     logging.info("Newsletter generation complete")
 
 if __name__ == "__main__":
