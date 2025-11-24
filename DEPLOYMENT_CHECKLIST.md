@@ -2,6 +2,9 @@
 
 **Quick reference for deploying fixes from architecture audit**
 
+> **Note:** Azure Functions have been migrated to a separate repository:  
+> https://github.com/mig1980/myblog-azure-functions
+
 ---
 
 ## ⚡ Immediate Actions (REQUIRED)
@@ -75,10 +78,8 @@ Expected: Newsletter downloaded from blob and sent to subscribers
 ## 📝 Files Changed
 
 ### Modified
-- ✅ `azure-functions/MyBlogSubscribers/requirements.txt` - Pinned versions
-- ✅ `azure-functions/MyBlogSubscribers/function_app.py` - CORS security
-- ✅ `azure-functions/MyBlogSubscribers/weekly_job.py` - GitHub config validation
 - ✅ `scripts/upload_newsletter_to_blob.py` - Azure exception handling
+- ✅ Azure Functions (migrated to separate repository)
 
 ### Created
 - ✅ `.github/workflows/generate-newsletter-full.yml` - Complete automation
