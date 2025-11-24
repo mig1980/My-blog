@@ -13,3 +13,4 @@ pre-commit>=3.5.0            # Git hook management for automated checks
 black>=24.1.0                # Python code formatter
 isort>=5.13.0                # Python import sorter
 flake8>=7.0.0                # Python linter (ARM-compatible)
+mypy>=1.13.0                 # Python type checker

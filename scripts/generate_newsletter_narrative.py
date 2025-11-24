@@ -112,7 +112,7 @@ def extract_blog_sections(html_content: str) -> Dict[str, str]:
     for heading in soup.find_all(["h2", "h3"]):
         heading_text = heading.get_text(strip=True)
         if "top movers" in heading_text.lower():
-            paragraphs = []
+            paragraphs: list[str] = []
             current = heading.find_next_sibling()
             while current and len(paragraphs) < 3:
                 if current.name == "p":
