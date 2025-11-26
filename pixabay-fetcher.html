@@ -324,6 +324,15 @@
             opacity: 0.9;
         }
 
+        .btn-upload {
+            background: linear-gradient(135deg, rgba(168, 85, 247, 0.9), rgba(236, 72, 153, 0.4));
+            color: white;
+        }
+
+        .btn-upload:hover {
+            opacity: 0.9;
+        }
+
         @media (max-width: 1024px) {
             .pixabay-hero {
                 padding: 2.25rem 2rem;
@@ -759,11 +768,17 @@
                     <button type="button" class="btn-small btn-download" data-index="${index}">
                         Download
                     </button>
+                    <button type="button" class="btn-small btn-upload" data-index="${index}">
+                        Upload to Repo
+                    </button>
                 </div>
             `;
 
             const downloadBtn = info.querySelector('.btn-download');
             downloadBtn.addEventListener('click', () => downloadImage(index));
+
+            const uploadBtn = info.querySelector('.btn-upload');
+            uploadBtn.addEventListener('click', () => uploadToRepo(index));
 
             card.appendChild(preview);
             card.appendChild(info);
@@ -851,6 +866,143 @@
             a.click();
             URL.revokeObjectURL(url);
             document.body.removeChild(a);
+        }
+
+        async function uploadToRepo(index) {
+            const img = currentImages[index];
+            const format = elements.format.value;
+            const targetWidth = Math.max(100, Math.min(4000, parseInt(elements.width.value, 10) || 1200));
+            const targetHeight = Math.max(100, Math.min(4000, parseInt(elements.height.value, 10) || 800));
+
+            // Prompt for filename with validation
+            let filename = prompt('Enter week number for filename (e.g., 7 for W7.webp):\n\nFormat: W{number}.webp', '');
+
+            if (!filename) {
+                showStatus('Upload cancelled', 'error');
+                return;
+            }
+
+            // Clean and validate filename
+            filename = filename.trim();
+
+            // If user entered just a number, format it as W{n}
+            if (/^\d+$/.test(filename)) {
+                filename = `W${filename}`;
+            }
+
+            // If user entered W{n} format, keep it
+            if (!/^W\d+$/i.test(filename)) {
+                showStatus('Invalid format. Use W7, W6, etc.', 'error');
+                return;
+            }
+
+            // Normalize to uppercase W and add extension
+            filename = filename.toUpperCase() + `.${format}`;
+
+            showStatus('Processing and uploading image...', 'loading');
+
+            try {
+                // Resize the image
+                const imageUrl = img.largeImageURL || img.webformatURL;
+                const resizedBlob = await resizeImageFromUrl(imageUrl, targetWidth, targetHeight, format);
+
+                // Convert blob to base64
+                const base64Content = await blobToBase64(resizedBlob);
+
+                // Get GitHub token from localStorage
+                const githubToken = localStorage.getItem('github_token');
+                if (!githubToken) {
+                    const token = prompt('Enter your GitHub Personal Access Token:\n\nRequired permissions: repo\n\nGet token at: https://github.com/settings/tokens');
+                    if (!token?.trim()) {
+                        showStatus('GitHub token required for upload', 'error');
+                        return;
+                    }
+                    localStorage.setItem('github_token', token.trim());
+                }
+
+                // Upload to GitHub
+                const uploadResult = await uploadToGitHub(
+                    filename,
+                    base64Content.split(',')[1], // Remove data:image/... prefix
+                    localStorage.getItem('github_token')
+                );
+
+                if (uploadResult.success) {
+                    showStatus(`✅ Uploaded as ${filename} and committed!`, 'success');
+                } else {
+                    showStatus(`❌ Upload failed: ${uploadResult.error}`, 'error');
+                }
+            } catch (error) {
+                showStatus(`Error: ${error.message}`, 'error');
+                console.error('Upload error:', error);
+            }
+        }
+
+        function blobToBase64(blob) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+        }
+
+        async function uploadToGitHub(filename, base64Content, token) {
+            const owner = 'mig1980'; // Your GitHub username
+            const repo = 'quantuminvestor'; // Your repo name
+            const path = `Media/${filename}`;
+            const branch = 'main';
+
+            try {
+                // Check if file exists (to get SHA for update)
+                let sha = null;
+                try {
+                    const checkResponse = await fetch(
+                        `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
+                        {
+                            headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Accept': 'application/vnd.github.v3+json'
+                            }
+                        }
+                    );
+                    if (checkResponse.ok) {
+                        const data = await checkResponse.json();
+                        sha = data.sha;
+                    }
+                } catch (e) {
+                    // File doesn't exist, that's fine
+                }
+
+                // Upload/update file
+                const uploadResponse = await fetch(
+                    `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
+                    {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Accept': 'application/vnd.github.v3+json',
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            message: `Add/Update hero image ${filename}`,
+                            content: base64Content,
+                            branch: branch,
+                            ...(sha && { sha: sha })
+                        })
+                    }
+                );
+
+                if (!uploadResponse.ok) {
+                    const errorData = await uploadResponse.json();
+                    throw new Error(errorData.message || `GitHub API error: ${uploadResponse.status}`);
+                }
+
+                const result = await uploadResponse.json();
+                return { success: true, data: result };
+            } catch (error) {
+                return { success: false, error: error.message };
+            }
         }
     </script>
 </body>
