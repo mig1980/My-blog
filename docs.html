@@ -83,11 +83,11 @@
                     <div class="docs-hero-metrics">
                         <div class="docs-hero-metric">
                             <div class="docs-hero-metric-label">Stack Components</div>
-                            <div class="docs-hero-metric-value text-purple-400">15+</div>
+                            <div class="docs-hero-metric-value text-purple-400">20+</div>
                         </div>
                         <div class="docs-hero-metric">
                             <div class="docs-hero-metric-label">API Integrations</div>
-                            <div class="docs-hero-metric-value text-purple-400">4</div>
+                            <div class="docs-hero-metric-value text-purple-400">6</div>
                         </div>
                         <div class="docs-hero-metric">
                             <div class="docs-hero-metric-label">Automation Pipeline</div>
@@ -149,12 +149,15 @@
                             <span class="docs-chip">📊 Alpha Vantage API</span>
                             <span class="docs-chip">📈 Marketstack API</span>
                             <span class="docs-chip">🔗 Finnhub API</span>
+                            <span class="docs-chip">🖼️ Pexels API</span>
+                            <span class="docs-chip">🎨 Pixabay API</span>
                             <span class="docs-chip">🤖 GPT-5.1-chat</span>
                         </div>
                         <p class="text-gray-400 text-sm mt-3">
                             Python orchestrates the entire automation pipeline: fetching real-time market data from multiple
                             financial APIs, calculating portfolio metrics, validating calculations, generating visual components,
-                            and coordinating AI-driven content creation through Azure OpenAI's GPT-5.1-chat deployment.
+                            sourcing hero images from Pexels and Pixabay stock photo libraries, and coordinating AI-driven content creation
+                            through Azure OpenAI's GPT-5.1-chat deployment.
                         </p>
 
                         <h3 class="text-xl font-semibold mt-6 mb-3">Frontend & Presentation</h3>
@@ -191,12 +194,15 @@
                             <span class="docs-chip">📐 Python Chart Generation</span>
                             <span class="docs-chip">📈 Normalized Performance</span>
                             <span class="docs-chip">🎯 Interactive Tables</span>
+                            <span class="docs-chip">🖼️ Stock Photo APIs</span>
                             <span class="docs-chip">🔢 Real-Time Metrics</span>
                         </div>
                         <p class="text-gray-400 text-sm mt-3">
                             Deterministic visual generation using Python eliminates AI unpredictability. SVG charts scale perfectly
                             across devices. Performance tables with responsive breakpoints ensure readability on all screens.
-                            Custom CSS classes maintain visual consistency.
+                            Hero images automatically sourced from Pexels and Pixabay curated stock photo libraries with intelligent selection
+                            based on keyword matching, resolution quality, popularity metrics, and editor's choice status. Images optimized to WebP format for
+                            25-35% smaller file sizes. Custom CSS classes maintain visual consistency across all components.
                         </p>
 
                         <h3 class="text-xl font-semibold mt-6 mb-3">Development & Deployment</h3>
@@ -236,6 +242,8 @@
                             <span class="docs-chip">📊 Alpha Vantage API</span>
                             <span class="docs-chip">🔗 Finnhub API</span>
                             <span class="docs-chip">📈 Marketstack API</span>
+                            <span class="docs-chip">🖼️ Pexels API</span>
+                            <span class="docs-chip">🎨 Pixabay API</span>
                             <span class="docs-chip">🔄 Retry Logic (3x)</span>
                             <span class="docs-chip">⏱️ Rate Limiting</span>
                         </div>
@@ -243,6 +251,7 @@
                             Fetch current prices from Alpha Vantage (primary), with automatic fallback to Finnhub and Marketstack.
                             Rate limiting enforced (12s between Alpha Vantage calls). Retry logic with exponential backoff handles
                             transient network errors. Updates <code>master.json</code> with new price entries for all portfolio stocks and benchmarks.
+                            Hero images sourced from Pexels and Pixabay using keyword-based search with smart filtering by resolution, popularity, and editor's choice status.
                         </p>
 
                         <h3 class="text-xl font-semibold mt-6 mb-3">Stage 2: Metrics Calculation</h3>
@@ -278,12 +287,16 @@
                             <span class="docs-chip">🐍 Python Direct</span>
                             <span class="docs-chip">📊 SVG Charts</span>
                             <span class="docs-chip">📋 HTML Tables</span>
+                            <span class="docs-chip">🖼️ Hero Images</span>
                             <span class="docs-chip">📱 Responsive CSS</span>
                             <span class="docs-chip">🎯 Pixel-Perfect</span>
                         </div>
                         <p class="text-gray-400 text-sm mt-3">
                             Python generates performance table (HTML) and normalized line chart (SVG) deterministically from
                             <code>master.json</code> metrics. SVG charts scale perfectly across devices. Performance tables include responsive breakpoints for mobile/tablet/desktop.
+                            Hero images fetched from Pexels or Pixabay APIs using <code>pixabay_hero_fetcher.py</code> with keyword-based search,
+                            automatically resized to 1200x800 WebP format with smart cropping and quality optimization. Intelligent scoring algorithm
+                            selects best images based on resolution, likes, views, and editor's choice status.
                         </p>
 
                         <h3 class="text-xl font-semibold mt-6 mb-3">Stage 5A: Narrative (Prompt B)</h3>

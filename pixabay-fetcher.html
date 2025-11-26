@@ -9,7 +9,7 @@
     <meta name="theme-color" content="#000000">
     <meta http-equiv="X-Content-Type-Options" content="nosniff">
     <meta http-equiv="X-Frame-Options" content="SAMEORIGIN">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'nonce-qi123' https://pixabay.com; style-src 'self' 'nonce-qi123'; img-src 'self' data: https://pixabay.com https://cdn.pixabay.com; font-src 'self' data:; connect-src 'self' https://pixabay.com https://api.github.com; frame-src 'none'; base-uri 'self'; form-action 'self';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'nonce-qi123' https://pixabay.com; style-src 'self' 'nonce-qi123'; img-src 'self' data: https://pixabay.com https://cdn.pixabay.com https://images.pexels.com; font-src 'self' data:; connect-src 'self' https://pixabay.com https://api.pexels.com https://api.github.com; frame-src 'none'; base-uri 'self'; form-action 'self';">
     <meta name="referrer" content="strict-origin-when-cross-origin">
     <meta name="robots" content="noindex, nofollow">
     <link rel="canonical" href="https://quantuminvestor.net/pixabay-fetcher.html">
@@ -534,9 +534,16 @@
         </div>
 
         <section id="licenseInfo" class="pixabay-panel mt-8" style="display: none;">
-            <h2 class="text-lg font-semibold mb-3">📄 Pixabay License</h2>
+            <h2 class="text-lg font-semibold mb-3">📄 Image Licenses</h2>
+
+            <h3 class="text-md font-semibold mb-2 mt-4">Pixabay License</h3>
             <p class="text-sm" style="color: var(--text-gray-400); line-height: 1.7;">
                 Pixabay images, videos, and audio are free to use for both personal and commercial projects, with no attribution required. You may adapt or modify the content, but you may not sell or redistribute it in its original form, nor claim it as your own trademark, brand, or logo. Content must not be used in illegal, misleading, offensive, or defamatory contexts. Some files may feature trademarks, logos, or identifiable people, which could require additional permissions for certain uses.
+            </p>
+
+            <h3 class="text-md font-semibold mb-2 mt-4">Pexels License</h3>
+            <p class="text-sm" style="color: var(--text-gray-400); line-height: 1.7;">
+                All photos and videos on Pexels are free to use for personal and commercial purposes with no attribution required. You can modify, copy, and distribute the content. However, identifiable people may not appear in a bad light or in a way that is offensive. You cannot sell unaltered copies of a photo or video, such as selling it as a stock photo, poster, print, or on a physical product without modifying it first. Attribution is appreciated but not required.
             </p>
         </section>
     </main>
@@ -550,11 +557,14 @@
         'use strict';
 
         // Constants
-        const API_URL = 'https://pixabay.com/api/';
-        const STORAGE_KEY = 'pixabay_api_key';
+        const PIXABAY_API_URL = 'https://pixabay.com/api/';
+        const PEXELS_API_URL = 'https://api.pexels.com/v1/search';
+        const PIXABAY_KEY = 'pixabay_api_key';
+        const PEXELS_KEY = 'pexels_api_key';
 
         // State
-        let apiKey = localStorage.getItem(STORAGE_KEY) || '';
+        let pixabayKey = localStorage.getItem(PIXABAY_KEY) || '';
+        let pexelsKey = localStorage.getItem(PEXELS_KEY) || '';
         let currentImages = [];
 
         // DOM Elements (cached)
@@ -580,11 +590,11 @@
         function init() {
             cacheElements();
             setupEventListeners();
-            createApiKeyButton();
+            createApiKeyButtons();
 
-            // Show message if no API key
-            if (!apiKey) {
-                showStatus('Click "Set API Key" button to enter your Pixabay API key', 'loading');
+            // Show message if no API keys
+            if (!pixabayKey || !pexelsKey) {
+                showStatus('Click "Set API Keys" to configure Pixabay and Pexels access', 'loading');
             }
         }
 
@@ -610,49 +620,59 @@
             elements.searchBtn.addEventListener('click', searchImages);
         }
 
-        function createApiKeyButton() {
+        function createApiKeyButtons() {
             const button = document.getElementById('apiKeyButton');
             if (button) {
-                // Update button text if API key exists
-                if (apiKey) {
-                    button.textContent = '🔑 Change API Key';
+                // Update button text if API keys exist
+                const bothSet = pixabayKey && pexelsKey;
+                if (bothSet) {
+                    button.textContent = '🔑 Change API Keys';
                     button.style.opacity = '0.8';
                 } else {
-                    button.textContent = '🔑 Set API Key';
+                    button.textContent = '🔑 Set API Keys';
                     button.style.opacity = '1';
                 }
 
-                button.addEventListener('click', resetApiKey);
+                button.addEventListener('click', resetApiKeys);
             }
         }
 
-        function promptForApiKey() {
-            const key = prompt('Enter your Pixabay API key:\n\nGet your free API key at:\nhttps://pixabay.com/api/docs/');
-            if (key?.trim()) {
-                apiKey = key.trim();
-                localStorage.setItem(STORAGE_KEY, apiKey);
-                showStatus('API key saved successfully!', 'success');
+        function promptForApiKeys() {
+            const pixabayPrompt = prompt('Enter your Pixabay API key:\n\nGet free key at: https://pixabay.com/api/docs/');
+            if (pixabayPrompt?.trim()) {
+                pixabayKey = pixabayPrompt.trim();
+                localStorage.setItem(PIXABAY_KEY, pixabayKey);
+            }
 
-                // Update button appearance
+            const pexelsPrompt = prompt('Enter your Pexels API key:\n\nGet free key at: https://www.pexels.com/api/');
+            if (pexelsPrompt?.trim()) {
+                pexelsKey = pexelsPrompt.trim();
+                localStorage.setItem(PEXELS_KEY, pexelsKey);
+            }
+
+            if (pixabayKey && pexelsKey) {
+                showStatus('API keys saved successfully!', 'success');
                 const button = document.getElementById('apiKeyButton');
                 if (button) {
-                    button.textContent = '🔑 Change API Key';
+                    button.textContent = '🔑 Change API Keys';
                     button.style.opacity = '0.8';
                 }
-            } else if (key === '') {
-                showStatus('API key cannot be empty', 'error');
+            } else {
+                showStatus('Both API keys are required', 'error');
             }
         }
 
-        function resetApiKey() {
-            if (apiKey) {
-                const confirm = window.confirm('Do you want to change your API key?');
+        function resetApiKeys() {
+            if (pixabayKey || pexelsKey) {
+                const confirm = window.confirm('Do you want to change your API keys?');
                 if (!confirm) return;
             }
 
-            localStorage.removeItem(STORAGE_KEY);
-            apiKey = '';
-            promptForApiKey();
+            localStorage.removeItem(PIXABAY_KEY);
+            localStorage.removeItem(PEXELS_KEY);
+            pixabayKey = '';
+            pexelsKey = '';
+            promptForApiKeys();
         }
 
         function showStatus(message, type) {
@@ -675,32 +695,33 @@
                 return;
             }
 
-            if (!apiKey) {
-                promptForApiKey();
-                if (!apiKey) {
-                    showStatus('API key required', 'error');
+            if (!pixabayKey || !pexelsKey) {
+                promptForApiKeys();
+                if (!pixabayKey || !pexelsKey) {
+                    showStatus('Both API keys required', 'error');
                     return;
                 }
             }
 
             setLoadingState(true);
-            showStatus('Searching Pixabay...', 'loading');
+            showStatus('Searching Pixabay & Pexels...', 'loading');
 
             try {
-                const params = buildSearchParams(query);
-                const response = await fetch(`${API_URL}?${params}`);
+                const perPage = parseInt(elements.perPage.value);
 
-                if (!response.ok) {
-                    const errorText = response.status === 429 ? 'Rate limit exceeded. Please wait and try again.' : `API error: ${response.status}`;
-                    throw new Error(errorText);
-                }
+                // Search both APIs in parallel
+                const [pixabayResults, pexelsResults] = await Promise.all([
+                    searchPixabay(query, perPage),
+                    searchPexels(query, perPage)
+                ]);
 
-                const data = await response.json();
+                // Merge results
+                const allImages = [...pixabayResults, ...pexelsResults];
 
-                if (data.hits?.length > 0) {
-                    currentImages = data.hits;
-                    displayResults(data.hits);
-                    showStatus(`Found ${data.totalHits} images, showing ${data.hits.length}`, 'success');
+                if (allImages.length > 0) {
+                    currentImages = allImages;
+                    displayResults(allImages);
+                    showStatus(`Found ${allImages.length} images (${pixabayResults.length} Pixabay, ${pexelsResults.length} Pexels)`, 'success');
                     elements.results.style.display = 'block';
 
                     // Show license info after results
@@ -717,13 +738,75 @@
             }
         }
 
-        function buildSearchParams(query) {
+        async function searchPixabay(query, perPage) {
+            try {
+                const params = buildPixabayParams(query, perPage);
+                const response = await fetch(`${PIXABAY_API_URL}?${params}`);
+
+                if (!response.ok) {
+                    console.warn('Pixabay API error:', response.status);
+                    return [];
+                }
+
+                const data = await response.json();
+                return (data.hits || []).map(img => ({
+                    ...img,
+                    source: 'Pixabay',
+                    previewURL: img.previewURL,
+                    largeImageURL: img.largeImageURL || img.webformatURL
+                }));
+            } catch (error) {
+                console.warn('Pixabay search failed:', error);
+                return [];
+            }
+        }
+
+        async function searchPexels(query, perPage) {
+            try {
+                const params = new URLSearchParams({
+                    query: query,
+                    per_page: perPage,
+                    orientation: 'landscape'
+                });
+
+                const response = await fetch(`${PEXELS_API_URL}?${params}`, {
+                    headers: {
+                        'Authorization': pexelsKey
+                    }
+                });
+
+                if (!response.ok) {
+                    console.warn('Pexels API error:', response.status);
+                    return [];
+                }
+
+                const data = await response.json();
+                return (data.photos || []).map(photo => ({
+                    id: photo.id,
+                    source: 'Pexels',
+                    previewURL: photo.src.medium,
+                    largeImageURL: photo.src.large2x || photo.src.large,
+                    webformatURL: photo.src.large,
+                    imageWidth: photo.width,
+                    imageHeight: photo.height,
+                    user: photo.photographer,
+                    tags: photo.alt || query,
+                    likes: 0,
+                    views: 0
+                }));
+            } catch (error) {
+                console.warn('Pexels search failed:', error);
+                return [];
+            }
+        }
+
+        function buildPixabayParams(query, perPage) {
             const params = new URLSearchParams({
-                key: apiKey,
+                key: pixabayKey,
                 q: query,
                 image_type: 'photo',
                 orientation: 'horizontal',
-                per_page: elements.perPage.value,
+                per_page: perPage,
                 safesearch: 'true',
                 order: 'popular'
             });
@@ -761,7 +844,8 @@
             info.innerHTML = `
                 <div class="image-meta">
                     <strong>${img.imageWidth} x ${img.imageHeight}</strong><br>
-                    👍 ${img.likes} | 👁️ ${img.views}<br>
+                    ${img.source === 'Pixabay' ? `👍 ${img.likes} | 👁️ ${img.views}<br>` : ''}
+                    Source: ${img.source}<br>
                     By: ${img.user}
                 </div>
                 <div class="image-actions">
