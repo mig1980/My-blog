@@ -2748,7 +2748,8 @@ Generate the complete HTML file for Week {self.week_number}.
         # Replace Recent Posts section (everything between the grid div opening and closing)
         # Pattern: Find the grid div inside Recent Posts section and replace its contents
         # Use a more specific pattern that matches the section structure
-        pattern = r'(<section class="mb-20">\s*<h2 class="text-2xl font-bold mb-8">Recent Posts</h2>\s*<div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">)(.*?)(</div>\s*</section>)'
+        # Allow optional attributes like aria-label on the grid div
+        pattern = r'(<section class="mb-20">\s*<h2 class="text-2xl font-bold mb-8">Recent Posts</h2>\s*<div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6"[^>]*>)(.*?)(</div>\s*</section>)'
 
         replacement = r"\1\n" + "\n".join(cards_html) + "\n            \3"
 
