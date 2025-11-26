@@ -70,9 +70,14 @@ Use `seo.json` for all meta tags:
 
 ### INLINE VISUAL + TLDR CSS
 
-**CRITICAL**: The automation script now injects complete CSS styles in the `<style>` block within `<head>`. You do NOT need to add CSS manually.
+**🚨 CRITICAL - DO NOT ADD CSS 🚨**: The automation script **automatically injects ALL required CSS** in the `<style>` block within `<head>`. 
 
-The automation script's `_apply_standard_head()` method automatically injects:
+**YOU MUST NOT**:
+- Add any `<style>` blocks to the HTML output
+- Use inline `style="..."` attributes anywhere in the body
+- Include CSS rules in your response
+
+The automation script's `_apply_standard_head()` method **automatically injects**:
 - Complete `.myblock-performance-snapshot` and `.myblock-portfolio-table` styles matching Week 5:
   - Purple header: `#8B7AB8`
   - White table background

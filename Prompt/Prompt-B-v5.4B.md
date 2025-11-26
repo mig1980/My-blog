@@ -107,12 +107,16 @@ Your narrative must follow this structure:
 
 6. **Performance Since Inception**:
    - `h2`: `Performance Since Inception`
-   - **EXACTLY 3 paragraphs** before the chart (MANDATORY - automation script looks for 3 paragraphs):
+   - **🚨 CRITICAL REQUIREMENT 🚨**: Write **EXACTLY 3 paragraphs** before the chart (NO MORE, NO LESS):
+     - The automation script uses regex pattern `(?:<p[^>]*>.*?</p>\s*){3}` to locate the chart insertion point
+     - Writing 2 or 4 paragraphs will cause chart embedding to fail
+     - Each paragraph must be a complete `<p>` tag with proper closing `</p>`
+   - **Required 3 paragraphs** (MANDATORY ORDER):
      1. Paragraph 1: "The chart below shows normalized performance for the portfolio, the S&P 500, and Bitcoin, allowing apples-to-apples comparison regardless of starting price levels."
      2. Paragraph 2: "All assets are normalized to 100 on the October 9, 2025 inception date, with 100 displayed as the central reference line. Readings above 100 indicate gains since inception; readings below 100 indicate losses."
      3. Paragraph 3: Compare where GenAi Chosen sits relative to the 100 baseline vs S&P 500 and Bitcoin, highlighting the AI model's performance (e.g., "The GenAi Chosen portfolio holds above the 100 baseline, the S&P 500 sits slightly above it, and Bitcoin remains well below...").
    - The chart will be automatically embedded by automation script after these 3 paragraphs
-   - **CRITICAL**: Do NOT add fewer or more than 3 paragraphs - the automation script uses regex pattern `(?:<p[^>]*>.*?</p>\s*){3}` to find insertion point
+   - **VERIFY**: Count your paragraphs after writing - must be exactly 3 between the h2 and where chart should appear
 
 7. **This Week's Recommendation**
    - `h2`: `This Week's Recommendation: [HOLD/REBALANCE/SELL/BUY]`
@@ -140,7 +144,11 @@ Your narrative must follow this structure:
         <p class="text-gray-300 mb-6"><strong>This portfolio is AI-generated and designed for aggressive growth</strong>. It carries higher volatility and risk than diversified index funds. Past performance does not guarantee future results. This content is for informational purposes only and should not be considered financial advice. Always consult a licensed financial advisor before making investment decisions.</p>
         ```
      2. Next review schedule:
-        - `Next Review: Monday, [the following Monday date], after market close.`
+        - **IMPORTANT**: Review day depends on week number:
+          - **Weeks 1-5**: Use **Monday** (e.g., "Next Review: Monday, November 24, 2025, after market close.")
+          - **Week 6 and later**: Use **Thursday** (e.g., "Next Review: Thursday, November 27, 2025, after market close.")
+        - Calculate the date by adding 7 days to the current week's date from `master.json`
+        - Format: `Next Review: [DayOfWeek], [Month] [Day], [Year], after market close.`
 
 ---
 
@@ -151,7 +159,11 @@ You must also output a `seo.json` object with:
 - `title` – same string used in `<title>` and `<h1>`, e.g.:
   - `"GenAi-Managed Stocks Portfolio Week 5 – Performance, Risks & Next Moves - Quantum Investor Digest"`
 - `description` – matches `<meta name="description">`, OG description, Twitter description.
-- `canonicalUrl` – full URL of the post.
+- `canonicalUrl` – **REQUIRED** - Full canonical URL of the blog post page
+  - Format: `https://quantuminvestor.net/Posts/GenAi-Managed-Stocks-Portfolio-Week-{N}.html`
+  - Example for Week 5: `"canonicalUrl": "https://quantuminvestor.net/Posts/GenAi-Managed-Stocks-Portfolio-Week-5.html"`
+  - Example for Week 6: `"canonicalUrl": "https://quantuminvestor.net/Posts/GenAi-Managed-Stocks-Portfolio-Week-6.html"`
+  - This field is MANDATORY - the automation script requires it for metadata generation
 - `ogTitle`, `ogDescription`, `ogImage`, `ogUrl`.
 - `twitterTitle`, `twitterDescription`, `twitterImage`, `twitterCard` (usually `"summary_large_image"`).
 
