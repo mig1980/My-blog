@@ -6,7 +6,7 @@ concurrency:
 
 on:
   schedule:
-    - cron: '45 21 * * 4'  # Every Thursday at 4:45 PM EST (9:45 PM UTC)
+    - cron: '0 23 * * 4'  # Every Thursday at 6:00 PM EST (11:00 PM UTC)
   workflow_dispatch:  # Manual trigger
     inputs:
       week:
