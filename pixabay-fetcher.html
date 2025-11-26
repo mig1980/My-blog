@@ -960,9 +960,11 @@
                     const checkResponse = await fetch(
                         `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
                         {
+                            method: 'GET',
                             headers: {
-                                'Authorization': `Bearer ${token}`,
-                                'Accept': 'application/vnd.github.v3+json'
+                                'Authorization': `token ${token}`,
+                                'Accept': 'application/vnd.github.v3+json',
+                                'User-Agent': 'Quantum-Investor-Blog'
                             }
                         }
                     );
@@ -972,6 +974,7 @@
                     }
                 } catch (e) {
                     // File doesn't exist, that's fine
+                    console.log('File check error:', e);
                 }
 
                 // Upload/update file
@@ -980,9 +983,10 @@
                     {
                         method: 'PUT',
                         headers: {
-                            'Authorization': `Bearer ${token}`,
+                            'Authorization': `token ${token}`,
                             'Accept': 'application/vnd.github.v3+json',
-                            'Content-Type': 'application/json'
+                            'Content-Type': 'application/json',
+                            'User-Agent': 'Quantum-Investor-Blog'
                         },
                         body: JSON.stringify({
                             message: `Add/Update hero image ${filename}`,
