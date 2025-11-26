@@ -9,7 +9,7 @@
     <meta name="theme-color" content="#000000">
     <meta http-equiv="X-Content-Type-Options" content="nosniff">
     <meta http-equiv="X-Frame-Options" content="SAMEORIGIN">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'nonce-qi123' https://pixabay.com; style-src 'self' 'nonce-qi123'; img-src 'self' data: https://pixabay.com https://cdn.pixabay.com; font-src 'self' data:; connect-src 'self' https://pixabay.com; frame-src 'none'; base-uri 'self'; form-action 'self';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'nonce-qi123' https://pixabay.com; style-src 'self' 'nonce-qi123'; img-src 'self' data: https://pixabay.com https://cdn.pixabay.com; font-src 'self' data:; connect-src 'self' https://pixabay.com https://api.github.com; frame-src 'none'; base-uri 'self'; form-action 'self';">
     <meta name="referrer" content="strict-origin-when-cross-origin">
     <meta name="robots" content="noindex, nofollow">
     <link rel="canonical" href="https://quantuminvestor.net/pixabay-fetcher.html">
@@ -921,11 +921,16 @@
                 }
 
                 // Upload to GitHub
+                console.log('Starting GitHub upload for:', filename);
+                console.log('Token length:', localStorage.getItem('github_token')?.length);
+
                 const uploadResult = await uploadToGitHub(
                     filename,
                     base64Content.split(',')[1], // Remove data:image/... prefix
                     localStorage.getItem('github_token')
                 );
+
+                console.log('Upload result:', uploadResult);
 
                 if (uploadResult.success) {
                     showStatus(`✅ Uploaded as ${filename} and committed!`, 'success');
@@ -934,7 +939,7 @@
                 }
             } catch (error) {
                 showStatus(`Error: ${error.message}`, 'error');
-                console.error('Upload error:', error);
+                console.error('Upload error details:', error);
             }
         }
 
@@ -1005,7 +1010,8 @@
                 const result = await uploadResponse.json();
                 return { success: true, data: result };
             } catch (error) {
-                return { success: false, error: error.message };
+                console.error('GitHub API error details:', error);
+                return { success: false, error: `${error.message} (Check console for details)` };
             }
         }
     </script>
