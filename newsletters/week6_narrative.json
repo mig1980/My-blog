@@ -1,0 +1,54 @@
+{
+  "week_number": 6,
+  "date_range": "Nov 17 to Nov 21, 2025",
+  "subject_line": "\ud83d\udcc9 Week 6: -5.82% | Risk-Off Pressure",
+  "preheader": "Portfolio dips as tech, gold, and cyclicals retreat broadly",
+  "opening_paragraph": "The GenAi Chosen portfolio declined -5.82% this week, falling below its starting value for the first time since inception and bringing total returns to -3.01%. A broad risk-off shift swept through markets, pressuring high-beta tech, cyclicals, and even traditional safe-haven plays. Nearly every stock in the portfolio sold off as investor appetite faded and volatility picked up. This sets the stage for a deeper look at the sectors and names most affected by the downturn.",
+  "key_insights": [
+    {
+      "title": "Tech Leads Selloff",
+      "description": "Western Digital, Seagate, and Palantir posted sharp losses as high-beta AI and data infrastructure names fell out of favor. The move reflects heightened macro uncertainty and a broad pullback from growth exposures. These declines weighed heavily on weekly portfolio performance.",
+      "icon": "chip",
+      "emoji": "\ud83d\udcbb"
+    },
+    {
+      "title": "Gold Miners Slip",
+      "description": "Newmont dropped despite gold's typical defensive profile, signaling that miners were not spared in the risk-off rotation. The decline erased some of the portfolio's prior resilience from precious metals exposure. This shows how correlations can tighten during broad market stress.",
+      "icon": "gold",
+      "emoji": "\ud83e\ude99"
+    },
+    {
+      "title": "Cyclicals Lose Momentum",
+      "description": "Royal Caribbean and NRG Energy both retreated as cyclical sectors struggled to hold recent gains. Travel and energy names, which had benefitted from earlier momentum, were unable to withstand the market's defensive pivot. Their pullbacks contributed to the portfolio's broad-based weekly weakness.",
+      "icon": "flash",
+      "emoji": "\u26a1"
+    }
+  ],
+  "performance_data": {
+    "portfolio_value": 9699,
+    "weekly_change": -5.82,
+    "total_return": -3.01,
+    "sp500_weekly": -1.41,
+    "sp500_total": -0.69,
+    "bitcoin_weekly": -12.1,
+    "bitcoin_total": -28.96,
+    "top_performer": {
+      "ticker": "GEV",
+      "change": -0.04
+    },
+    "worst_performer": {
+      "ticker": "WDC",
+      "change": -10.77
+    }
+  },
+  "market_context": "Markets faced broad selling pressure as risk appetite declined, hitting growth-oriented tech, cyclicals, and even defensive plays. Tech and AI-linked names were among the hardest hit, reflecting a shift away from high-beta assets. Gold miners also weakened, underscoring how widespread the risk-off mood had become. Overall, investor sentiment turned cautious, leading to heavy selling across nearly all portfolio components.",
+  "market_outlook": "In the near term, continued volatility is likely as markets digest shifting risk sentiment and macro uncertainty. A stabilization in growth expectations or a rebound in momentum-driven sectors could help the portfolio recover. Over the coming months, sector rotation and selective strength in resilient industries may create new opportunities for the model to reposition.",
+  "benchmark_comparison": {
+    "portfolio_weekly": -5.82,
+    "sp500_weekly": -1.41,
+    "bitcoin_weekly": -12.1,
+    "summary": "The portfolio underperformed the S&P 500 but held up better than Bitcoin, which saw the steepest decline among the benchmarks."
+  },
+  "call_to_action_url": "https://quantuminvestor.net/Posts/GenAi-Managed-Stocks-Portfolio-Week-6.html",
+  "tone": "cautious"
+}

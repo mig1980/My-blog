@@ -256,23 +256,23 @@ OUTPUT FORMAT (JSON):
   "date_range": "{date_range}",
   "subject_line": "Generate as: [Emoji] Week X: [%] | [Key Theme] (under 50 chars)",
   "preheader": "First 50-60 characters for inbox preview",
-  "opening_paragraph": "2-3 sentences summarizing weekly performance and context",
+  "opening_paragraph": "3-4 sentences summarizing weekly performance with richer context. Include: (1) Overall portfolio performance with exact percentage, (2) Key market drivers or events that influenced the week, (3) How the portfolio responded to these conditions, (4) A brief transition to the deeper analysis that follows.",
   "key_insights": [
     {{
       "title": "Insight title (3-5 words)",
-      "description": "1-2 sentence explanation",
+      "description": "2-3 sentence explanation with more context about sector trends, stock-specific catalysts, or market dynamics",
       "icon": "Select appropriate icon from APPROVED_ICONS list",
       "emoji": "Fallback emoji for Outlook (single character)"
     }},
     {{
       "title": "Insight title (3-5 words)",
-      "description": "1-2 sentence explanation",
+      "description": "2-3 sentence explanation with more context about sector trends, stock-specific catalysts, or market dynamics",
       "icon": "Select appropriate icon from APPROVED_ICONS list",
       "emoji": "Fallback emoji for Outlook (single character)"
     }},
     {{
       "title": "Insight title (3-5 words)",
-      "description": "1-2 sentence explanation",
+      "description": "2-3 sentence explanation with more context about sector trends, stock-specific catalysts, or market dynamics",
       "icon": "Select appropriate icon from APPROVED_ICONS list",
       "emoji": "Fallback emoji for Outlook (single character)"
     }}
@@ -288,7 +288,8 @@ OUTPUT FORMAT (JSON):
     "top_performer": {{"ticker": "Find stock with highest weekly_pct", "change": "percentage"}},
     "worst_performer": {{"ticker": "Find stock with lowest weekly_pct", "change": "percentage"}}
   }},
-  "market_context": "2-3 sentences: (1) Current market conditions from blog, (2) Market expectations for the next 1-3 weeks based on blog analysis and portfolio positioning",
+  "market_context": "3-4 sentences covering what happened during the week. Structure: (1) Key events or macroeconomic developments that drove market action, (2) How different sectors responded (winners/losers and why), (3) Investor sentiment and market positioning shifts observed in the blog.",
+  "market_outlook": "2-3 sentences covering forward expectations. Structure: (1) Short-term outlook (next 1-2 weeks): anticipated catalysts, technical levels, or momentum expectations from the blog, (2) Mid-term outlook (1-3 months): broader trends, positioning adjustments, or thematic opportunities mentioned in the blog.",
   "benchmark_comparison": {{
     "portfolio_weekly": "Extract from portfolio_data.portfolio_totals.weekly_pct",
     "sp500_weekly": "Extract from portfolio_data.benchmarks.sp500.history[-1].weekly_pct",
@@ -300,17 +301,18 @@ OUTPUT FORMAT (JSON):
 }}
 
 EXTRACTION RULES:
-1. **Opening paragraph**: 2-3 sentences summarizing weekly performance with exact numbers
-2. **Key insights**: Extract 2-3 main points from "Top Movers" section - MUST include "icon" field (from APPROVED_ICONS list) and "emoji" field (single character fallback)
+1. **Opening paragraph**: 3-4 sentences with richer narrative context. Go beyond raw numbers to tell the story: What market forces shaped the week? How did the portfolio respond? Set up the deeper analysis to follow.
+2. **Key insights**: Extract 2-3 main points from "Top Movers" section with EXPANDED explanations (2-3 sentences each). Include more detail about why stocks moved, sector dynamics, or broader market implications. MUST include "icon" field (from APPROVED_ICONS list) and "emoji" field (single character fallback).
 3. **Keep numbers exact**: Use precise percentages from master.json
 4. **Mirror tone**: Match blog post's sentiment (bullish/bearish/neutral)
-5. **No new analysis**: Only condense existing blog content
+5. **No new analysis**: Only condense existing blog content, but capture MORE of the context and reasoning from the blog
 6. **Subject line**: Format as "[Emoji] Week X: [%] | [Key Theme]" (under 50 chars)
 7. **Preheader**: Compelling 50-60 char summary for inbox preview
 8. **Format percentages**: Always include +/- sign, 2 decimal places
 9. **CRITICAL - Portfolio Composition**: The portfolio contains ONLY STOCKS. S&P 500 and Bitcoin are BENCHMARK COMPARISONS for performance tracking, NOT portfolio holdings. Do not refer to "all three assets" or imply the portfolio holds Bitcoin or S&P 500 ETFs. Correct phrasing: "The portfolio declined X% while the S&P 500 fell Y% and Bitcoin dropped Z%" or "The stock portfolio underperformed/outperformed the S&P 500 benchmark."
-10. **Market Context with Forward Outlook**: Extract BOTH (a) current market conditions from the blog's analysis, AND (b) forward-looking expectations for the next 1-3 weeks based on the blog's discussion of trends, positioning, or anticipated catalysts. Look for phrases about upcoming events, momentum continuation/reversal, sector rotation expectations, or risk factors mentioned in the blog.
-11. **Benchmark Comparison Section**: Always include a benchmark_comparison object with exact weekly percentages for the GenAi portfolio, S&P 500, and Bitcoin. Add a 1-2 sentence summary comparing the portfolio's performance against both benchmarks (e.g., "The portfolio underperformed both benchmarks this week" or "The portfolio outperformed the S&P 500 but lagged Bitcoin").
+10. **Market Context (What Happened)**: Extract 3-4 substantive sentences covering: (a) Key events, economic data, or policy developments that drove market action during the week, (b) How different sectors and the portfolio responded (winners/losers and why), (c) Shifts in investor sentiment, risk appetite, or market positioning mentioned in the blog.
+11. **Market Outlook (Forward View)**: Extract 2-3 sentences covering: (a) Short-term outlook (1-2 weeks): Near-term catalysts, technical levels, or momentum continuation/reversal expectations from the blog, (b) Mid-term outlook (1-3 months): Broader trends, sector rotation opportunities, or strategic positioning themes discussed in the blog.
+12. **Benchmark Comparison Section**: Always include a benchmark_comparison object with exact weekly percentages for the GenAi portfolio, S&P 500, and Bitcoin. Add a 1-2 sentence summary comparing the portfolio's performance against both benchmarks (e.g., "The portfolio underperformed both benchmarks this week" or "The portfolio outperformed the S&P 500 but lagged Bitcoin").
 
 CRITICAL JSON FORMATTING REQUIREMENTS:
 - Your response MUST be valid, parseable JSON
@@ -318,11 +320,21 @@ CRITICAL JSON FORMATTING REQUIREMENTS:
 - Ensure all arrays end with ] and objects end with }}
 - Do not add trailing commas after the last item in arrays or objects
 - Verify all opening brackets {{ [ have matching closing brackets }} ]
-- Each key_insights item must be a complete object with both "title" and "description" properties
+- Each key_insights item must be a complete object with ALL required properties: "title", "description", "icon", "emoji"
 - All numeric values should be numbers, not strings (unless specified as strings in the format)
 - Check that every opening quote has a matching closing quote
 - Escape any quotes within string values using \"
+- Replace problematic characters: Use regular hyphens (-) instead of en-dashes (–) or em-dashes (—)
+- For long descriptions, use regular spaces and hyphens, avoid special Unicode characters
 - Do not include any text before or after the JSON object
+- Validate that each closing brace/bracket matches its opening pair at the correct nesting level
+
+BEFORE RESPONDING:
+1. Write out the complete JSON structure
+2. Count opening and closing braces/brackets to ensure they match
+3. Verify no trailing commas exist
+4. Confirm all string quotes are properly closed
+5. Test that all special characters are escaped or replaced with standard ASCII equivalents
 
 OUTPUT: Valid JSON only, no markdown formatting or code blocks. Triple-check JSON syntax before responding."""  # nosec B608
 
@@ -382,7 +394,13 @@ OUTPUT: Valid JSON only, no markdown formatting or code blocks. Triple-check JSO
         narrative_data = json.loads(narrative_json)
     except json.JSONDecodeError as e:
         logging.error(f"Invalid JSON response from OpenAI: {e}")
-        logging.debug(f"Response: {narrative_json[:500]}")
+        logging.error(f"Full response (first 1000 chars):\n{narrative_json[:1000]}")
+
+        # Save the invalid JSON for debugging
+        error_log = Path(__file__).parent.parent / "newsletters" / f"week{week_num}_error.json"
+        with open(error_log, "w", encoding="utf-8") as f:
+            f.write(narrative_json)
+        logging.error(f"Saved full response to: {error_log}")
         raise
 
     # Validate required fields
@@ -393,6 +411,8 @@ OUTPUT: Valid JSON only, no markdown formatting or code blocks. Triple-check JSO
         "opening_paragraph",
         "key_insights",
         "performance_data",
+        "market_context",
+        "market_outlook",
         "call_to_action_url",
     ]
     missing_fields = [field for field in required_fields if field not in narrative_data]

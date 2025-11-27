@@ -1,0 +1,53 @@
+{
+  "week_number": 6,
+  "date_range": "Nov 17 to Nov 21, 2025",
+  "subject_line": "📉 Week 6: -5.82% | Risk-Off Hits Tech",
+  "preheader": "Portfolio slides as tech, gold miners, and cyclicals retreat",
+  "opening_paragraph": "The GenAi Chosen portfolio fell -5.82% this week, pulling its total return since inception down to -3.01%. A broad risk-off shift pressured equities as investors moved away from high-beta and momentum-driven names. The portfolio, concentrated in growth and cyclical stocks, was hit especially hard as nearly all positions turned red. This sets the stage for a deeper look at the market forces behind the week's pullback and the sectors that drove the decline.",
+  "key_insights": [
+    {
+      "title": "Tech Leads Selloff",
+      "description": "Western Digital, Seagate, and Palantir saw heavy declines as investors rotated out of high-growth, AI-linked stocks. The sharp pullback underscores how sensitive data infrastructure and AI-exposed names are to shifts in macro uncertainty. These moves signal fading appetite for elevated valuations tied to future earnings growth.",
+      "icon": "chip",
+      "emoji": "💻"
+    },
+    {
+      "title": "Gold Miners Slip",
+      "description": "Newmont Corp dropped despite gold's reputation as a defensive asset, showing that miners were not immune to the broader risk-off tone. The decline erased part of the portfolio's prior resilience from its materials exposure. This highlights how quickly defensive sectors can falter when liquidity tightens across markets.",
+      "icon": "gold",
+      "emoji": "🪙"
+    },
+    {
+      "title": "Cyclicals Lose Momentum",
+      "description": "Travel and energy names such as Royal Caribbean and NRG Energy also retreated after several weeks of strength. Cyclical sectors that had benefited from improving sentiment were unable to hold gains as volatility picked up. Their weakness reflects broader skepticism toward economically sensitive industries during market pullbacks.",
+      "icon": "flash",
+      "emoji": "⚡"
+    }
+  ],
+  "performance_data": {
+    "portfolio_value": 9699,
+    "weekly_change": -5.82,
+    "total_return": -3.01,
+    "sp500_weekly": -1.41,
+    "sp500_total": -0.69,
+    "bitcoin_weekly": -12.1,
+    "bitcoin_total": -28.96,
+    "top_performer": {
+      "ticker": "GEV",
+      "change": -0.04
+    },
+    "worst_performer": {
+      "ticker": "WDC",
+      "change": -10.77
+    }
+  },
+  "market_context": "Markets experienced a pronounced risk-off shift this week, pressuring high-growth and cyclical sectors across the board. Tech stocks were among the hardest hit as investors stepped back from AI and data infrastructure names in response to rising macro uncertainty. Gold miners also failed to act as a safe haven, confirming that selling pressure was broad rather than sector-specific. Sentiment turned defensive as investors reduced exposure to momentum-driven trades. In the short term, this environment suggests continued volatility as markets seek stability. Over the mid-term, the portfolio's focus on growth and resilience signals will remain sensitive to shifts in risk appetite and sector rotation.",
+  "benchmark_comparison": {
+    "portfolio_weekly": -5.82,
+    "sp500_weekly": -1.41,
+    "bitcoin_weekly": -12.1,
+    "summary": "The GenAi portfolio underperformed the S&P 500 this week but declined less sharply than Bitcoin, which saw the steepest drop among benchmarks."
+  },
+  "call_to_action_url": "https://quantuminvestor.net/Posts/GenAi-Managed-Stocks-Portfolio-Week-6.html",
+  "tone": "cautious"
+}
