@@ -4,8 +4,8 @@ A manual script to fetch and compare stock and cryptocurrency prices from all th
 
 ## Features
 
-- **Multi-Provider Support**: Fetches prices from Alpha Vantage, Finnhub, and Marketstack
-- **Rate Limiting**: Respects API rate limits (5 req/min for Alpha Vantage and Finnhub)
+- **Multi-Provider Support**: Fetches prices from Finnhub and Marketstack
+- **Rate Limiting**: Respects API rate limits (50 req/min for Finnhub, 100 req/month for Marketstack)
 - **Discrepancy Detection**: Calculates price differences and highlights significant variances
 - **Formatted Output**: Clean table display with success/error status for each API
 - **Flexible Querying**: Compare stocks, crypto, or both
@@ -14,9 +14,8 @@ A manual script to fetch and compare stock and cryptocurrency prices from all th
 
 | Provider | Stocks | Crypto | Rate Limit | Notes |
 |----------|--------|--------|------------|-------|
-| **Alpha Vantage** | ✓ | ✓ | 5 req/min | Primary source |
-| **Finnhub** | ✓ | ✓ | 5 req/min | Fallback source |
-| **Marketstack** | ✓ | ✗ | Higher | S&P 500 specialist |
+| **Finnhub** | ✓ | ✓ | 50 req/min | Primary source (stocks, Bitcoin) |
+| **Marketstack** | ✓ | ✗ | 100 req/month | Secondary fallback (stocks), primary (S&P 500) |
 
 ## Prerequisites
 
@@ -26,18 +25,16 @@ pip install requests
 ```
 
 ### API Keys (Environment Variables)
-At least one API key is required:
+Finnhub API key is recommended (primary source). Marketstack is optional (fallback/S&P 500).
 
 ```bash
 # Windows PowerShell
-$env:ALPHAVANTAGE_API_KEY="your_key_here"
 $env:FINNHUB_API_KEY="your_key_here"
-$env:MARKETSTACK_API_KEY="your_key_here"
+$env:MARKETSTACK_API_KEY="your_key_here"  # Optional
 
 # Linux/Mac
-export ALPHAVANTAGE_API_KEY="your_key_here"
 export FINNHUB_API_KEY="your_key_here"
-export MARKETSTACK_API_KEY="your_key_here"
+export MARKETSTACK_API_KEY="your_key_here"  # Optional
 ```
 
 ## Usage
@@ -77,17 +74,15 @@ python compare_api_prices.py --crypto-only
 ```
 API KEY STATUS
 ====================================================================================================
-Alpha Vantage: ✓ Available
-Finnhub:       ✓ Available
-Marketstack:   ✓ Available
+Finnhub:       ✓ Available (Primary)
+Marketstack:   ✓ Available (Secondary)
 ====================================================================================================
 
 ================================================================================
 Fetching stock: AAPL
 ================================================================================
-  → Querying Alpha Vantage...
   → Querying Finnhub...
-  [Rate limit] Waiting 12.0s for Finnhub...
+  [Rate limit] Waiting 1.3s for Finnhub...
   → Querying Marketstack...
 
 
@@ -99,9 +94,8 @@ AAPL (STOCK)
 ----------------------------------------------------------------------------------------------------
 API                       Price           Date            Status                                       
 ----------------------------------------------------------------------------------------------------
-Alpha Vantage             $178.45         2025-11-26      ✓ Success                                    
-Finnhub                   $178.42         2025-11-26      ✓ Success                                    
-Marketstack               $178.45         2025-11-25      ✓ Success                                    
+Finnhub                   $178.42         2025-11-26      ✓ Success (Primary)                            
+Marketstack               $178.45         2025-11-25      ✓ Success (Fallback)                                    
 
 Discrepancy Analysis:
   Min Price: $178.42
@@ -113,8 +107,7 @@ BTC (CRYPTO)
 ----------------------------------------------------------------------------------------------------
 API                       Price           Date            Status                                       
 ----------------------------------------------------------------------------------------------------
-Alpha Vantage (Crypto)    $94,234.56      2025-11-26      ✓ Success                                    
-Finnhub (Crypto)          $94,230.12      2025-11-26      ✓ Success                                    
+Finnhub (Crypto)          $94,230.12      2025-11-26      ✓ Success (BINANCE:BTCUSDT)                                    
 
 Discrepancy Analysis:
   Min Price: $94,230.12
@@ -205,25 +198,26 @@ python compare_api_prices.py > api_health_$(date +%Y%m%d).log
 
 ## Rate Limiting Details
 
-### Alpha Vantage
-- Free tier: 5 requests/minute, 500 requests/day
-- Script enforces: 12 seconds between calls
+### Finnhub (Primary)
+- Free tier: 50 requests/minute, 60 requests/day
+- Script enforces: 1.3 seconds between calls
+- Used for: All stocks, Bitcoin (BINANCE:BTCUSDT)
 
-### Finnhub
-- Free tier: 5 requests/minute, 60 requests/day
-- Script enforces: 12 seconds between calls
-
-### Marketstack
+### Marketstack (Secondary)
 - Free tier: 100 requests/month
-- Script enforces: 2 seconds between calls (conservative)
+- Script enforces: 2 seconds between calls
+- Used for: S&P 500 (primary), stock prices (fallback)
 
-**Tip**: For large stock lists, consider querying only 1-2 APIs to save rate limits.
+**Tip**: Finnhub's 50 calls/min limit allows faster data fetching than previous Alpha Vantage implementation (5 calls/min).
 
 ## Integration with Portfolio Automation
 
 This script uses the same API fetching logic as `portfolio_automation.py`:
 - Same rate limiting strategy
-- Same fallback hierarchy (Alpha Vantage → Finnhub → Marketstack)
+- Same fallback hierarchy:
+  - **Stocks**: Finnhub (primary) → Marketstack (secondary)
+  - **S&P 500**: Marketstack (primary) → Finnhub (secondary)
+  - **Bitcoin**: Finnhub only (BINANCE:BTCUSDT)
 - Same error handling patterns
 
 Results from this script can help diagnose issues in the main automation pipeline.

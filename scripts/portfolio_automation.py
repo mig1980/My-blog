@@ -3,7 +3,8 @@
 GenAi Chosen Portfolio - Weekly Automation Script
 
 Workflow:
-1. Fetch prices from APIs (Alpha Vantage, Marketstack, Finnhub)
+0. Check API status (Finnhub, Marketstack, Azure OpenAI connectivity)
+1. Fetch prices from APIs (Finnhub primary, Marketstack fallback)
 2. Calculate all metrics (stocks, portfolio, benchmarks, normalized chart)
 3. Generate visual components (performance table and chart) using Python
 4. Validate calculations (Prompt A - runs when AI enabled)
@@ -74,7 +75,6 @@ class PortfolioAutomation:
         github_token=None,
         model="gpt-5.1-chat",
         data_source="data-only",
-        alphavantage_key=None,
         marketstack_key=None,
         finnhub_key=None,
         eval_date=None,
@@ -94,7 +94,6 @@ class PortfolioAutomation:
 
         # API keys
         self.azure_api_key = os.getenv("AZURE_OPENAI_API_KEY")
-        self.alphavantage_key = alphavantage_key or os.getenv("ALPHAVANTAGE_API_KEY")
         self.marketstack_key = marketstack_key or os.getenv("MARKETSTACK_API_KEY")
         self.finnhub_key = finnhub_key or os.getenv("FINNHUB_API_KEY")
 
@@ -148,20 +147,30 @@ class PortfolioAutomation:
             raise ValueError(
                 "AI mode requires AZURE_OPENAI_API_KEY. Use --data-source=data-only for testing data fetch only."
             )
-        if self.data_source == "data-only" and not self.alphavantage_key:
-            raise ValueError("Data-only mode requires ALPHAVANTAGE_API_KEY environment variable.")
+        if self.data_source == "data-only" and not self.finnhub_key:
+            raise ValueError("Data-only mode requires FINNHUB_API_KEY environment variable (primary source).")
 
         # Log data source status
-        if self.data_source == "data-only":
-            logging.info(f"✓ Alpha Vantage enabled (key: {self.alphavantage_key[:8]}...)")
         if self.finnhub_key:
-            logging.info(f"✓ Finnhub fallback enabled (key: {self.finnhub_key[:8]}...)")
+            logging.info(f"✓ Finnhub enabled as PRIMARY (key: {self.finnhub_key[:8]}..., 50 calls/min limit)")
+        if self.marketstack_key:
+            logging.info(
+                f"✓ Marketstack enabled as SECONDARY FALLBACK (key: {self.marketstack_key[:8]}..., 100 calls/month free tier)"
+            )
         if not self.ai_enabled:
             logging.warning("⚠ Data-only mode: Will abort after data fetch (no narrative generation)")
 
-        # Finnhub rate limiting: 5 requests/minute = 1 request per 12 seconds
+        # Finnhub rate limiting: 50 requests/minute = 1 request per 1.2 seconds
+        # Using 1.3 seconds as safety margin to stay under limit
         self.last_finnhub_call = 0  # timestamp of last Finnhub API call
-        self.finnhub_min_interval = 12  # seconds between Finnhub calls
+        self.finnhub_min_interval = 1.3  # seconds between Finnhub calls (50/min = 1.2s, using 1.3s for safety)
+        self.finnhub_call_count = 0  # Track total calls for logging
+
+        # Marketstack rate limiting: Free tier = 100 req/month, no per-minute limit documented
+        # Using 2 second delay as conservative approach for secondary fallback
+        self.last_marketstack_call = 0
+        self.marketstack_min_interval = 2.0
+        self.marketstack_call_count = 0
 
         # Execution report tracking (initialize before load_prompts)
         self.report = {
@@ -561,7 +570,191 @@ Return a validation report (PASS or FAIL with details).
                 {"expected_path": str(expected_path)},
             )
 
-    # ===================== ALPHA VANTAGE DATA ENGINE =====================
+    # ===================== DATA FETCHING ENGINE =====================
+    def check_api_status(self):
+        """Check connection status for all configured APIs."""
+        logging.info("=" * 80)
+        logging.info("API CONNECTION STATUS")
+        logging.info("=" * 80)
+
+        status = {
+            "finnhub": {"configured": False, "connected": False, "error": None},
+            "marketstack": {"configured": False, "connected": False, "error": None},
+            "azure_openai": {"configured": False, "connected": False, "error": None},
+        }
+
+        # Check Finnhub
+        if self.finnhub_key:
+            status["finnhub"]["configured"] = True
+            logging.info("Finnhub: Testing connection...")
+            try:
+                url = "https://finnhub.io/api/v1/quote"
+                params = {"symbol": "AAPL", "token": self.finnhub_key}
+                response = self.session.get(url, params=params, timeout=10)
+                response.raise_for_status()
+                data = response.json()
+                if "c" in data and data.get("c") not in (None, 0):
+                    status["finnhub"]["connected"] = True
+                    logging.info(f"  ✓ Finnhub: Connected (test quote: AAPL = ${data['c']:.2f})")
+                else:
+                    status["finnhub"]["error"] = "No valid data returned"
+                    logging.warning(f"  ⚠ Finnhub: API responded but no valid data")
+            except requests.exceptions.HTTPError as e:
+                if e.response.status_code == 401:
+                    status["finnhub"]["error"] = "Authentication failed - invalid API key"
+                    logging.error(f"  ✗ Finnhub: Authentication failed (401)")
+                elif e.response.status_code == 429:
+                    status["finnhub"]["error"] = "Rate limit exceeded"
+                    logging.warning(f"  ⚠ Finnhub: Rate limit exceeded (429)")
+                else:
+                    status["finnhub"]["error"] = f"HTTP {e.response.status_code}"
+                    logging.error(f"  ✗ Finnhub: HTTP error {e.response.status_code}")
+            except requests.exceptions.Timeout:
+                status["finnhub"]["error"] = "Connection timeout"
+                logging.error(f"  ✗ Finnhub: Connection timeout")
+            except Exception as e:
+                status["finnhub"]["error"] = str(e)
+                logging.error(f"  ✗ Finnhub: {e}")
+        else:
+            logging.warning("  ⚠ Finnhub: Not configured (no API key)")
+
+        # Check Marketstack
+        if self.marketstack_key:
+            status["marketstack"]["configured"] = True
+            logging.info("Marketstack: Testing connection...")
+            try:
+                url = "http://api.marketstack.com/v1/eod/latest"
+                params = {"access_key": self.marketstack_key, "symbols": "AAPL", "limit": 1}
+                response = self.session.get(url, params=params, timeout=10)
+                response.raise_for_status()
+                data = response.json()
+
+                # Check for API errors in response
+                if "error" in data:
+                    error_info = data["error"]
+                    error_code = error_info.get("code", "unknown")
+                    error_msg = error_info.get("message", "No error message")
+                    status["marketstack"]["error"] = f"[{error_code}] {error_msg}"
+                    logging.error(f"  ✗ Marketstack: API error [{error_code}] {error_msg}")
+                elif "data" in data and data["data"] and len(data["data"]) > 0:
+                    quote = data["data"][0]
+                    price = quote.get("close")
+                    if price:
+                        status["marketstack"]["connected"] = True
+                        logging.info(f"  ✓ Marketstack: Connected (test quote: AAPL = ${price:.2f})")
+                    else:
+                        status["marketstack"]["error"] = "No price data returned"
+                        logging.warning(f"  ⚠ Marketstack: API responded but no price data")
+                else:
+                    status["marketstack"]["error"] = "No data returned"
+                    logging.warning(f"  ⚠ Marketstack: API responded but no data")
+            except requests.exceptions.HTTPError as e:
+                if e.response.status_code == 401:
+                    status["marketstack"]["error"] = "Authentication failed - invalid API key"
+                    logging.error(f"  ✗ Marketstack: Authentication failed (401)")
+                elif e.response.status_code == 429:
+                    status["marketstack"]["error"] = "Rate limit exceeded"
+                    logging.warning(f"  ⚠ Marketstack: Rate limit exceeded (429)")
+                else:
+                    status["marketstack"]["error"] = f"HTTP {e.response.status_code}"
+                    logging.error(f"  ✗ Marketstack: HTTP error {e.response.status_code}")
+            except requests.exceptions.Timeout:
+                status["marketstack"]["error"] = "Connection timeout"
+                logging.error(f"  ✗ Marketstack: Connection timeout")
+            except Exception as e:
+                status["marketstack"]["error"] = str(e)
+                logging.error(f"  ✗ Marketstack: {e}")
+        else:
+            logging.warning("  ⚠ Marketstack: Not configured (no API key)")
+
+        # Check Azure OpenAI
+        if self.azure_api_key and self.client:
+            status["azure_openai"]["configured"] = True
+            logging.info("Azure OpenAI: Testing connection...")
+            try:
+                # Test with a minimal completion request
+                # Note: GPT-5.1 uses max_completion_tokens instead of max_tokens
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": "You are a helpful assistant."},
+                        {"role": "user", "content": "Respond with OK"},
+                    ],
+                    max_completion_tokens=5,
+                )
+                if response and response.choices and len(response.choices) > 0:
+                    status["azure_openai"]["connected"] = True
+                    response_text = response.choices[0].message.content.strip()
+                    logging.info(
+                        f"  ✓ Azure OpenAI: Connected (deployment: {self.model}, test response: '{response_text}')"
+                    )
+                else:
+                    status["azure_openai"]["error"] = "No valid response returned"
+                    logging.warning(f"  ⚠ Azure OpenAI: API responded but no valid response")
+            except Exception as e:
+                error_msg = str(e)
+                if "401" in error_msg or "authentication" in error_msg.lower():
+                    status["azure_openai"]["error"] = "Authentication failed - invalid API key"
+                    logging.error(f"  ✗ Azure OpenAI: Authentication failed")
+                elif "429" in error_msg or "rate" in error_msg.lower():
+                    status["azure_openai"]["error"] = "Rate limit exceeded"
+                    logging.warning(f"  ⚠ Azure OpenAI: Rate limit exceeded")
+                elif "model" in error_msg.lower() or "deployment" in error_msg.lower():
+                    status["azure_openai"]["error"] = f"Model/deployment error: {error_msg}"
+                    logging.error(f"  ✗ Azure OpenAI: Model/deployment error - {error_msg}")
+                else:
+                    status["azure_openai"]["error"] = error_msg
+                    logging.error(f"  ✗ Azure OpenAI: {error_msg}")
+        else:
+            if not self.azure_api_key:
+                logging.warning("  ⚠ Azure OpenAI: Not configured (no API key)")
+            else:
+                logging.warning("  ⚠ Azure OpenAI: Client not initialized")
+
+        logging.info("=" * 80)
+
+        # Summary
+        finnhub_ok = status["finnhub"]["configured"] and status["finnhub"]["connected"]
+        marketstack_ok = status["marketstack"]["configured"] and status["marketstack"]["connected"]
+        azure_ok = status["azure_openai"]["configured"] and status["azure_openai"]["connected"]
+
+        if finnhub_ok:
+            logging.info("✓ PRIMARY API (Finnhub): Ready")
+        else:
+            logging.warning("⚠ PRIMARY API (Finnhub): Not available")
+
+        if marketstack_ok:
+            logging.info("✓ SECONDARY API (Marketstack): Ready")
+        else:
+            logging.warning("⚠ SECONDARY API (Marketstack): Not available")
+
+        if azure_ok:
+            logging.info("✓ AI SERVICE (Azure OpenAI): Ready")
+        else:
+            if self.data_source == "ai":
+                logging.warning("⚠ AI SERVICE (Azure OpenAI): Not available but required for AI mode")
+            else:
+                logging.info("ℹ AI SERVICE (Azure OpenAI): Not available (data-only mode)")
+
+        # Check if at least one data API is working
+        if not finnhub_ok and not marketstack_ok:
+            logging.error("✗ CRITICAL: No working data APIs available for fetching")
+            if status["finnhub"]["configured"]:
+                logging.error(f"  Finnhub error: {status['finnhub']['error']}")
+            if status["marketstack"]["configured"]:
+                logging.error(f"  Marketstack error: {status['marketstack']['error']}")
+            raise ValueError("Cannot proceed: No working API connections available for data fetching")
+
+        # Check if AI mode requires Azure OpenAI
+        if self.data_source == "ai" and not azure_ok:
+            logging.error("✗ CRITICAL: Azure OpenAI not available but required for AI mode")
+            if status["azure_openai"]["configured"]:
+                logging.error(f"  Azure OpenAI error: {status['azure_openai']['error']}")
+            raise ValueError("Cannot proceed: Azure OpenAI required for AI mode but not available")
+
+        logging.info("=" * 80)
+        return status
+
     def _latest_market_date(self):
         """Return latest market date (previous weekday if weekend)."""
         d = datetime.now(timezone.utc).date()
@@ -572,126 +765,98 @@ Return a validation report (PASS or FAIL with details).
             d -= timedelta(days=2)
         return d.strftime("%Y-%m-%d")
 
-    def _fetch_alphavantage_quote(self, symbol):
-        """Fetch latest quote for a symbol from Alpha Vantage.
-        Returns dict with date, close price, and source, or None on failure.
-        """
-        url = "https://www.alphavantage.co/query"
-        params = {
-            "function": "GLOBAL_QUOTE",
-            "symbol": symbol,
-            "apikey": self.alphavantage_key,
-        }
-        try:
-            response = self.session.get(url, params=params, timeout=60)
-            response.raise_for_status()
-            data = response.json()
-
-            if "Global Quote" in data and data["Global Quote"]:
-                quote = data["Global Quote"]
-                # Validate date format
-                date_str = quote.get("07. latest trading day", "")
-                try:
-                    datetime.strptime(date_str, "%Y-%m-%d")
-                    date_clean = date_str
-                except ValueError:
-                    date_clean = self._latest_market_date()
-                    logging.warning(
-                        f"Invalid date format from Alpha Vantage for {symbol}, using fallback: {date_clean}"
-                    )
-
-                return {
-                    "date": date_clean,
-                    "close": float(quote.get("05. price", 0)),
-                    "source": "Alpha Vantage",
-                }
-            elif "Note" in data:
-                logging.warning(f"Rate limit hit for {symbol}: {data['Note']}")
-                return None
-            else:
-                logging.warning(f"No data returned for {symbol}")
-                return None
-        except Exception as e:
-            logging.warning(f"Failed to fetch {symbol}: {e}")
-            return None
-
-    def _fetch_alphavantage_crypto(self, symbol, to_currency="USD"):
-        """Fetch crypto price from Alpha Vantage crypto endpoint.
-        Returns dict with date, close price, and source, or None on failure.
-        """
-        url = "https://www.alphavantage.co/query"
-        params = {
-            "function": "CURRENCY_EXCHANGE_RATE",
-            "from_currency": symbol,
-            "to_currency": to_currency,
-            "apikey": self.alphavantage_key,
-        }
-        try:
-            response = self.session.get(url, params=params, timeout=60)
-            response.raise_for_status()
-            data = response.json()
-            if "Realtime Currency Exchange Rate" in data:
-                rate = data["Realtime Currency Exchange Rate"]
-                # Validate date format
-                date_str = rate.get("6. Last Refreshed", "")
-                try:
-                    date_obj = datetime.strptime(date_str[:10], "%Y-%m-%d")
-                    date_clean = date_obj.strftime("%Y-%m-%d")
-                except (ValueError, IndexError):
-                    date_clean = self._latest_market_date()
-                    logging.warning(
-                        f"Invalid date format from Alpha Vantage crypto for {symbol}, using fallback: {date_clean}"
-                    )
-
-                return {
-                    "date": date_clean,
-                    "close": float(rate.get("5. Exchange Rate", 0)),
-                    "source": "Alpha Vantage (Crypto)",
-                }
-            else:
-                logging.warning(f"No crypto data returned for {symbol}")
-                return None
-        except Exception as e:
-            logging.warning(f"Failed to fetch crypto {symbol}: {e}")
-            return None
-
     def _fetch_marketstack_quote(self, symbol):
         """Fetch latest quote for a symbol from Marketstack.
+
+        Marketstack API Documentation: https://marketstack.com/documentation
+        - Free tier: HTTP only, 100 req/month, 1000 results/request
+        - Paid tiers: HTTPS support, higher limits
+        - End-of-day data endpoint: /v1/eod/latest
+        - Returns closing prices for stocks and indices
+
         Returns dict with date, close price, and source, or None on failure.
         """
         if not self.marketstack_key:
             return None
 
+        # Rate limiting: Conservative 2 second delay between calls
+        elapsed = time.time() - self.last_marketstack_call
+        if elapsed < self.marketstack_min_interval:
+            wait_time = self.marketstack_min_interval - elapsed
+            logging.debug(f"Marketstack rate limit: waiting {wait_time:.1f}s before request")
+            time.sleep(wait_time)
+
+        # Use HTTP for free tier (HTTPS requires paid plan)
         url = "http://api.marketstack.com/v1/eod/latest"
-        params = {"access_key": self.marketstack_key, "symbols": symbol}
+        params = {"access_key": self.marketstack_key, "symbols": symbol, "limit": 1}  # Only need latest data point
+
         try:
+            self.last_marketstack_call = time.time()
+            self.marketstack_call_count += 1
+            logging.debug(f"Marketstack API call #{self.marketstack_call_count} for {symbol}")
+
             response = self.session.get(url, params=params, timeout=60)
             response.raise_for_status()
             data = response.json()
 
+            # Check for API errors
+            if "error" in data:
+                error_info = data["error"]
+                error_code = error_info.get("code", "unknown")
+                error_msg = error_info.get("message", "No error message")
+                logging.warning(f"Marketstack API error for {symbol}: [{error_code}] {error_msg}")
+                return None
+
+            # Validate response has data
             if "data" in data and data["data"] and len(data["data"]) > 0:
                 quote = data["data"][0]
-                # Validate date format
+
+                # Extract and validate close price
+                close_price = quote.get("close")
+                if close_price is None or close_price == 0:
+                    logging.warning(f"Marketstack returned invalid close price for {symbol}: {close_price}")
+                    return None
+
+                # Validate and parse date
                 date_str = quote.get("date", "")
                 try:
-                    # Validate it's a proper date and extract YYYY-MM-DD
+                    # Marketstack returns ISO 8601 format: YYYY-MM-DDTHH:MM:SS+0000
+                    # Extract just the date part
                     date_obj = datetime.strptime(date_str[:10], "%Y-%m-%d")
                     date_clean = date_obj.strftime("%Y-%m-%d")
-                except (ValueError, IndexError):
+                except (ValueError, IndexError, TypeError):
                     # Fallback to current market date
                     date_clean = self._latest_market_date()
-                    logging.warning(f"Invalid date format from Marketstack for {symbol}, using fallback: {date_clean}")
+                    logging.warning(
+                        f"Invalid date format from Marketstack for {symbol}: '{date_str}', using fallback: {date_clean}"
+                    )
 
+                logging.info(f"  ✓ Marketstack: {symbol} = ${close_price:.2f} on {date_clean}")
                 return {
                     "date": date_clean,
-                    "close": float(quote.get("close", 0)),
+                    "close": float(close_price),
                     "source": "Marketstack",
                 }
             else:
-                logging.warning(f"No data returned from Marketstack for {symbol}")
+                logging.warning(f"Marketstack returned no data for {symbol}")
                 return None
+
+        except requests.exceptions.HTTPError as e:
+            # Handle specific HTTP errors (rate limits, auth failures, etc.)
+            if e.response.status_code == 429:
+                logging.error(f"Marketstack rate limit exceeded for {symbol}")
+            elif e.response.status_code == 401:
+                logging.error(f"Marketstack authentication failed - check API key")
+            elif e.response.status_code == 404:
+                logging.warning(f"Marketstack: Symbol {symbol} not found")
+            else:
+                logging.warning(f"Marketstack HTTP error for {symbol}: {e}")
+            return None
+        except requests.exceptions.Timeout:
+            logging.warning(f"Marketstack request timeout for {symbol}")
+            return None
         except Exception as e:
-            logging.warning(f"Failed to fetch {symbol} from Marketstack: {e}")
+            logging.warning(f"Marketstack fetch failed for {symbol}: {e}")
             return None
 
     # ===================== FINNHUB DATA FETCHERS =====================
@@ -702,7 +867,7 @@ Return a validation report (PASS or FAIL with details).
         if not self.finnhub_key:
             return None
 
-        # Rate limit: 5 req/min = 12 seconds between calls
+        # Rate limit: 50 req/min = 1.2 seconds between calls (using 1.3s for safety)
         elapsed = time.time() - self.last_finnhub_call
         if elapsed < self.finnhub_min_interval:
             wait_time = self.finnhub_min_interval - elapsed
@@ -713,6 +878,8 @@ Return a validation report (PASS or FAIL with details).
         params = {"symbol": symbol, "token": self.finnhub_key}
         try:
             self.last_finnhub_call = time.time()  # Update timestamp before request
+            self.finnhub_call_count += 1
+            logging.debug(f"Finnhub API call #{self.finnhub_call_count} for {symbol}")
             response = self.session.get(url, params=params, timeout=60)
             response.raise_for_status()
             data = response.json()
@@ -744,7 +911,7 @@ Return a validation report (PASS or FAIL with details).
         if not self.finnhub_key:
             return None
 
-        # Rate limit: 5 req/min = 12 seconds between calls
+        # Rate limit: 50 req/min = 1.2 seconds between calls (using 1.3s for safety)
         elapsed = time.time() - self.last_finnhub_call
         if elapsed < self.finnhub_min_interval:
             wait_time = self.finnhub_min_interval - elapsed
@@ -757,6 +924,8 @@ Return a validation report (PASS or FAIL with details).
         params = {"symbol": finnhub_symbol, "token": self.finnhub_key}
         try:
             self.last_finnhub_call = time.time()  # Update timestamp before request
+            self.finnhub_call_count += 1
+            logging.debug(f"Finnhub API call #{self.finnhub_call_count} for crypto {symbol}")
             response = self.session.get(url, params=params, timeout=60)
             response.raise_for_status()
             data = response.json()
@@ -782,15 +951,21 @@ Return a validation report (PASS or FAIL with details).
             logging.warning(f"Finnhub crypto fetch failed for {symbol}: {e}")
             return None
 
-    def generate_master_from_alphavantage(self):
-        """Generate new week's master.json using Alpha Vantage API.
+    def generate_master_from_apis(self):
+        """Generate new week's master.json using financial data APIs.
+
+        API Priority:
+        - Stocks: Finnhub (primary) → Marketstack (secondary)
+        - S&P 500: Marketstack (primary) → Finnhub (secondary)
+        - Bitcoin: Finnhub only
+
         Uses previous week's master.json as baseline, fetches latest prices,
         recalculates weekly and total pct changes, benchmarks, portfolio history.
 
         Raises:
             ValueError: If master.json not loaded or if duplicate date detected.
         """
-        logging.info("Running Alpha Vantage data engine...")
+        logging.info("Running data fetching engine...")
         if self.master_json is None:
             raise ValueError("master.json must be loaded before fetching new data")
 
@@ -802,41 +977,29 @@ Return a validation report (PASS or FAIL with details).
         prev_portfolio_value = self.master_json["portfolio_history"][-1]["value"]
 
         tickers = [s["ticker"] for s in self.master_json["stocks"]]
-        logging.info(f"Fetching prices for {len(tickers)} stocks + 2 benchmarks (Alpha Vantage API)")
-        logging.info("Rate limiting: 5 requests/minute (12 sec between calls)...")
+        logging.info(f"Fetching prices for {len(tickers)} stocks + 2 benchmarks")
+        logging.info("API Priority: Finnhub (primary) → Marketstack (secondary)")
+        logging.info("Rate limiting: Finnhub 50 req/min (1.3s), Marketstack 2s delay")
 
-        # Fetch stock prices with rate limiting (5 req/min = 12 sec between calls for Alpha Vantage)
+        # Fetch stock prices with rate limiting (50 req/min = 1.3 sec between calls for Finnhub)
         price_data = {}
         price_sources = {}  # Track source for each symbol
         for i, ticker in enumerate(tickers, 1):
             logging.info(f"→ [{i}/{len(tickers)}] Fetching {ticker}...")
-            used_alphavantage = False
+            quote = None
 
-            quote = self._fetch_alphavantage_quote(ticker)
-            if quote:
-                used_alphavantage = True
-            else:
-                # Retry with delay
-                logging.info(f"  ⟳ Retry attempt for {ticker}...")
-                time.sleep(5)
-                quote = self._fetch_alphavantage_quote(ticker)
-                if quote:
-                    used_alphavantage = True
-
-            # Finnhub fallback (before Marketstack)
-            if not quote and self.finnhub_key:
-                logging.info(f"  ⟳ Trying Finnhub for {ticker}...")
+            # Try Finnhub first (primary source)
+            if self.finnhub_key:
                 quote = self._fetch_finnhub_quote(ticker)
                 if quote:
-                    used_alphavantage = False
-                    logging.info(f"  → Finnhub price acquired for {ticker}: {quote['close']}")
+                    logging.info(f"  ✓ {ticker}: ${quote['close']:.2f} on {quote['date']} (Finnhub)")
 
+            # Fallback to Marketstack if Finnhub fails
             if not quote and self.marketstack_key:
-                # Fallback to Marketstack
-                logging.info(f"  ⟳ Trying Marketstack for {ticker}...")
+                logging.info(f"  ⟳ Finnhub failed, trying Marketstack for {ticker}...")
                 quote = self._fetch_marketstack_quote(ticker)
                 if quote:
-                    used_alphavantage = False  # Track that we used Marketstack
+                    logging.info(f"  ✓ {ticker}: ${quote['close']:.2f} on {quote['date']} (Marketstack fallback)")
 
             if quote:
                 price_data[ticker] = quote
@@ -844,15 +1007,10 @@ Return a validation report (PASS or FAIL with details).
             else:
                 # Critical failure - cannot proceed without current prices
                 raise ValueError(
-                    f"Failed to fetch price for {ticker} from all sources. Cannot generate accurate portfolio data."
+                    f"Failed to fetch price for {ticker} from all sources (Finnhub, Marketstack). Cannot generate accurate portfolio data."
                 )
 
-            # Rate limiting (skip on last item)
-            if i < len(tickers):
-                if used_alphavantage:
-                    time.sleep(12)  # Alpha Vantage: 5 req/min
-                elif quote and quote.get("source") == "Marketstack":
-                    time.sleep(2)  # Marketstack: lighter rate limit
+            # Rate limiting handled by individual fetch methods (Finnhub: 1.3s, Marketstack: 2s)
 
         # Build updated stocks list
         updated_stocks = []
@@ -893,6 +1051,8 @@ Return a validation report (PASS or FAIL with details).
 
         # Benchmarks: Fetch based on configuration from master.json
         logging.info("Fetching benchmarks...")
+        logging.info("S&P 500 Priority: Marketstack (primary) → Finnhub (fallback)")
+        logging.info("Bitcoin: Finnhub only (BINANCE:BTCUSDT)")
         bench_data = {}
         bench_sources = {}  # Track source for each benchmark
 
@@ -900,65 +1060,51 @@ Return a validation report (PASS or FAIL with details).
         bench_config = self.master_json.get("benchmarks", {})
 
         for bench_key in bench_config.keys():
-            # Derive symbol and type from benchmark key or use defaults
-            # Expected: sp500 -> ^SPX (S&P 500 Index), bitcoin -> BTC (crypto)
+            bench_meta = bench_config[bench_key]
+            # Hardcoded symbols (master.json doesn't store symbols, only history)
+            bench_symbol = "^SPX" if bench_key == "sp500" else "BTC" if bench_key == "bitcoin" else ""
+            logging.info(f"Fetching {bench_key.upper()} ({bench_symbol})...")
+            quote = None
+
             if bench_key == "sp500":
-                symbol = "^SPX"  # S&P 500 Index symbol for Marketstack
-                bench_type = "index"
-            elif bench_key == "bitcoin":
-                symbol = "BTC"
-                bench_type = "crypto"
-            else:
-                # Future-proof: try to derive from key name
-                symbol = bench_key.upper()
-                bench_type = "stock"  # Default to stock
+                # Try Marketstack first for S&P 500 (primary source)
+                if self.marketstack_key:
+                    quote = self._fetch_marketstack_quote(bench_symbol)
+                    if quote:
+                        logging.info(f"  ✓ S&P 500: ${quote['close']:.2f} on {quote['date']} (Marketstack)")
+                    else:
+                        logging.warning(f"  ⟳ Marketstack failed for S&P 500, trying Finnhub...")
 
-            logging.info(f"Fetching {bench_key.upper()} ({symbol}, type: {bench_type})...")
-
-            if bench_type == "crypto":
-                # Alpha Vantage first
-                quote = self._fetch_alphavantage_crypto(symbol, to_currency="USD")
-                # Finnhub fallback
+                # Fallback to Finnhub (using ^GSPC symbol)
                 if not quote and self.finnhub_key:
-                    logging.info(f"Trying Finnhub crypto for {bench_key.upper()}...")
-                    quote = self._fetch_finnhub_crypto(symbol)
+                    quote = self._fetch_finnhub_quote("^GSPC")
+                    if quote:
+                        logging.info(f"  ✓ S&P 500: ${quote['close']:.2f} on {quote['date']} (Finnhub fallback)")
+
                 if not quote:
-                    raise ValueError(
-                        f"Failed to fetch {bench_key.upper()} ({symbol}) crypto price from Alpha Vantage/Finnhub."
-                    )
-            elif bench_key == "sp500":
-                # Use Marketstack ONLY for S&P 500 Index (^SPX)
-                if not self.marketstack_key:
-                    raise ValueError("MARKETSTACK_API_KEY required for S&P 500 Index retrieval")
-                logging.info(f"Fetching S&P 500 from Marketstack using {symbol}...")
-                quote = self._fetch_marketstack_quote(symbol)
+                    raise ValueError(f"Failed to fetch S&P 500 price from all sources (Marketstack, Finnhub)")
+
+            elif bench_key == "bitcoin":
+                # Finnhub for Bitcoin (using BINANCE:BTCUSDT)
+                if self.finnhub_key:
+                    quote = self._fetch_finnhub_crypto("BTC")
+                    if quote:
+                        logging.info(f"  ✓ Bitcoin: ${quote['close']:.2f} on {quote['date']} (Finnhub)")
+                    else:
+                        logging.error(f"  ✗ Finnhub failed for Bitcoin - no fallback available")
+
                 if not quote:
-                    raise ValueError(
-                        f"Failed to fetch S&P 500 ({symbol}) from Marketstack. Cannot generate accurate portfolio data."
-                    )
+                    raise ValueError(f"Failed to fetch Bitcoin price from Finnhub (no alternative source available)")
+
             else:
                 # Other benchmarks: use regular fallback chain
-                quote = self._fetch_alphavantage_quote(symbol)
-                if not quote and self.finnhub_key:
-                    logging.info(f"Trying Finnhub for benchmark {bench_key.upper()}...")
-                    quote = self._fetch_finnhub_quote(symbol)
-                if not quote and self.marketstack_key:
-                    logging.info(f"Trying Marketstack for {bench_key.upper()}...")
-                    quote = self._fetch_marketstack_quote(symbol)
-
-                if not quote:
-                    raise ValueError(
-                        f"Failed to fetch {bench_key.upper()} ({symbol}) price from all sources. Cannot generate accurate portfolio data."
-                    )
+                logging.warning(f"Unknown benchmark: {bench_key}")
+                continue
 
             bench_data[bench_key] = quote
             bench_sources[bench_key] = quote.get("source", "Unknown")
 
-            # Rate limiting based on source
-            if quote.get("source") == "Marketstack":
-                time.sleep(2)  # Marketstack: 2 sec delay
-            else:
-                time.sleep(12)  # Alpha Vantage: 12 sec delay
+            # Rate limiting handled by individual fetch methods
 
         # Update benchmarks
         updated_benchmarks = {}
@@ -1079,7 +1225,7 @@ Return a validation report (PASS or FAIL with details).
             {"prices": price_report},
         )
 
-        logging.info(f"Alpha Vantage data engine completed for Week {self.week_number}")
+        logging.info(f"Data fetching engine completed for Week {self.week_number}")
         logging.info(f"  → Primary: {master_path}")
         logging.info(f"  → Archive: {archive_path}")
         logging.info(f"  → Legacy:  {legacy_path} (optional)")
@@ -1253,6 +1399,20 @@ This is for Week {self.week_number}.
                 seo_status = "warning"
 
             logging.info("Prompt B completed - narrative and SEO generated")
+
+            # Save narrative and SEO to disk for inspection/debugging
+            current_week_dir = DATA_DIR / f"W{self.week_number}"
+            current_week_dir.mkdir(exist_ok=True)
+
+            narrative_path = current_week_dir / "narrative.html"
+            with open(narrative_path, "w", encoding="utf-8") as f:
+                f.write(self.narrative_html)
+            logging.info(f"Narrative saved to: {narrative_path}")
+
+            seo_path = current_week_dir / "seo.json"
+            with open(seo_path, "w", encoding="utf-8") as f:
+                json.dump(self.seo_json, f, indent=2)
+            logging.info(f"SEO metadata saved to: {seo_path}")
 
             self.add_step(
                 "Prompt B - Narrative Writer",
@@ -1976,6 +2136,7 @@ This is for Week {self.week_number}.
             "week_number": self.week_number,
             "current_date": self.master_json.get("meta", {}).get("current_date"),
             "inception_date": self.master_json.get("meta", {}).get("inception_date"),
+            "author": "Michael Gavrilov",  # Matches _apply_standard_head() value
         }
 
         user_message = f"""
@@ -2811,10 +2972,35 @@ Generate the complete HTML file now. All required components are provided above.
                 # Cache validated date for use throughout pipeline
                 self.validated_new_date = new_date
 
+                # Step 0: Check API connectivity before attempting data fetch
+                try:
+                    api_status = self.check_api_status()
+                    self.add_step(
+                        "Check API Status",
+                        "success",
+                        "Verified API connectivity for all providers",
+                        {
+                            "finnhub": "Connected" if api_status["finnhub"]["connected"] else "Not available",
+                            "marketstack": "Connected" if api_status["marketstack"]["connected"] else "Not available",
+                            "azure_openai": (
+                                "Connected"
+                                if api_status["azure_openai"]["connected"]
+                                else (
+                                    "Not configured"
+                                    if not api_status["azure_openai"]["configured"]
+                                    else "Not available"
+                                )
+                            ),
+                        },
+                    )
+                except Exception as e:
+                    self.add_step("Check API Status", "error", f"API connectivity check failed: {str(e)}")
+                    raise
+
                 # Step 1: Data acquisition and calculation (MUST succeed or abort)
-                # Always use Alpha Vantage method - it fetches prices AND calculates metrics
+                # Fetch prices from APIs and calculate all metrics
                 logging.info(f"Fetching new data for Week {self.week_number} (date: {new_date})")
-                updated_master = self.generate_master_from_alphavantage()
+                updated_master = self.generate_master_from_apis()
                 if not updated_master:
                     raise ValueError("Data engine failed to generate master.json")
 
@@ -2960,11 +3146,6 @@ def main():
         help="Data source: data-only (fetch+calculate, then abort - for testing) or ai (full pipeline with narrative)",
     )
     parser.add_argument(
-        "--alphavantage-key",
-        type=str,
-        help="Alpha Vantage API key (default: read from ALPHAVANTAGE_API_KEY env var)",
-    )
-    parser.add_argument(
         "--marketstack-key",
         type=str,
         help="Marketstack API key (default: read from MARKETSTACK_API_KEY env var)",
@@ -2995,7 +3176,6 @@ def main():
         github_token=args.github_token,
         model=args.model,
         data_source=args.data_source,
-        alphavantage_key=args.alphavantage_key,
         marketstack_key=args.marketstack_key,
         finnhub_key=args.finnhub_key,
         eval_date=args.eval_date,

@@ -63,11 +63,18 @@ The Quantum Investor Digest is a blog platform featuring an AI-managed stock por
 │  │                  Main Orchestration Script                           │   │
 │  ├─────────────────────────────────────────────────────────────────────┤   │
 │  │                                                                       │   │
+│  │  Step 0: API Status Check                                            │   │
+│  │  ┌──────────────────────────────────────────────────────────┐      │   │
+│  │  │ • Verify Finnhub, Marketstack, Azure OpenAI connectivity │      │   │
+│  │  │ • Test authentication and rate limits                     │      │   │
+│  │  │ • Block execution if no working APIs                      │      │   │
+│  │  └──────────────────────────────────────────────────────────┘      │   │
+│  │                           ↓                                          │   │
 │  │  Phase 1: Data Collection                                           │   │
 │  │  ┌──────────────────────────────────────────────────────────┐      │   │
-│  │  │ • Fetch stock prices (Alpha Vantage primary)             │      │   │
-│  │  │ • Fallback: Finnhub → Marketstack                        │      │   │
-│  │  │ • Rate limiting (12 sec/call)                             │      │   │
+│  │  │ • Fetch stock prices (Finnhub primary, 50 calls/min)     │      │   │
+│  │  │ • Fallback: Marketstack (100 calls/month)                 │      │   │
+│  │  │ • Rate limiting: Finnhub 1.3s, Marketstack 2s            │      │   │
 │  │  │ • Retry logic with exponential backoff                    │      │   │
 │  │  └──────────────────────────────────────────────────────────┘      │   │
 │  │                           ↓                                          │   │
@@ -167,16 +174,16 @@ The Quantum Investor Digest is a blog platform featuring an AI-managed stock por
 │                         EXTERNAL SERVICES                                    │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                               │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐   │
-│  │ Alpha        │  │   Finnhub    │  │ Marketstack  │  │ Azure OpenAI │   │
-│  │ Vantage      │  │  (Fallback)  │  │  (Fallback)  │  │  GPT-5.1     │   │
-│  │              │  │              │  │              │  │              │   │
-│  │ Stock prices │  │ Stock prices │  │ S&P 500 data │  │ Narrative    │   │
-│  │ Crypto data  │  │ Crypto data  │  │              │  │ generation   │   │
-│  │              │  │              │  │              │  │              │   │
-│  │ 5 req/min    │  │ 5 req/min    │  │ Higher limit │  │ API calls    │   │
-│  │ 12s delay    │  │ 12s delay    │  │ 2s delay     │  │ w/ retry     │   │
-│  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘   │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐   │
+│  │   Finnhub    │  │ Marketstack  │  │ Azure OpenAI │   │
+│  │  (Primary)   │  │ (Secondary)  │  │  GPT-5.1     │   │
+│  │              │  │              │  │              │   │
+│  │ Stock prices │  │ S&P 500 data │  │ Narrative    │   │
+│  │ Crypto data  │  │ Stock prices │  │ generation   │   │
+│  │              │  │ (fallback)   │  │              │   │
+│  │ 50 req/min   │  │ 100 req/mo   │  │ API calls    │   │
+│  │ 1.3s delay   │  │ 2s delay     │  │ w/ retry     │   │
+│  └──────────────┘  └──────────────┘  └──────────────┘   │
 │                                                                               │
 │  ┌──────────────┐  ┌──────────────┐                                         │
 │  │  Azure Blob  │  │   GitHub     │                                         │
@@ -224,9 +231,9 @@ The Quantum Investor Digest is a blog platform featuring an AI-managed stock por
 1. TRIGGER (GitHub Actions - Every Thursday 6:00 PM EST)
    │
    ├─→ 2. FETCH DATA
-   │   ├─ Alpha Vantage API → Stock prices
-   │   ├─ Marketstack API → S&P 500
-   │   └─ Alpha Vantage Crypto → Bitcoin
+   │   ├─ Finnhub API → Stock prices (primary)
+   │   ├─ Marketstack API → S&P 500 (primary), stocks (fallback)
+   │   └─ Finnhub Crypto → Bitcoin (BINANCE:BTCUSDT)
    │
    ├─→ 3. CALCULATE METRICS
    │   ├─ Portfolio value
@@ -291,9 +298,8 @@ Browser Request
 - **GitHub Actions**: CI/CD automation
 
 ### Data APIs
-- **Alpha Vantage**: Primary stock data source
-- **Finnhub**: Fallback stock data
-- **Marketstack**: S&P 500 index data
+- **Finnhub**: Primary stock data source (50 calls/min, free tier)
+- **Marketstack**: Secondary fallback for stocks, primary for S&P 500 (100 calls/month, free tier)
 - **Azure Blob Storage**: Newsletter distribution
 
 ### Security

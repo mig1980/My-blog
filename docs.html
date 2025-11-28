@@ -87,11 +87,11 @@
                         </div>
                         <div class="docs-hero-metric">
                             <div class="docs-hero-metric-label">API Integrations</div>
-                            <div class="docs-hero-metric-value text-purple-400">6</div>
+                            <div class="docs-hero-metric-value text-purple-400">5</div>
                         </div>
                         <div class="docs-hero-metric">
                             <div class="docs-hero-metric-label">Automation Pipeline</div>
-                            <div class="docs-hero-metric-value text-purple-400">5 Stages</div>
+                            <div class="docs-hero-metric-value text-purple-400">6 Stages</div>
                         </div>
                     </div>
                 </div>
@@ -146,18 +146,17 @@
                         <div class="docs-chips-row">
                             <span class="docs-chip">🐍 Python 3.10+</span>
                             <span class="docs-chip">⚡ Azure OpenAI API</span>
-                            <span class="docs-chip">📊 Alpha Vantage API</span>
-                            <span class="docs-chip">📈 Marketstack API</span>
-                            <span class="docs-chip">🔗 Finnhub API</span>
+                            <span class="docs-chip">📊 Finnhub API (Primary)</span>
+                            <span class="docs-chip">📈 Marketstack API (Secondary)</span>
                             <span class="docs-chip">🖼️ Pexels API</span>
                             <span class="docs-chip">🎨 Pixabay API</span>
                             <span class="docs-chip">🤖 GPT-5.1-chat</span>
                         </div>
                         <p class="text-gray-400 text-sm mt-3">
-                            Python orchestrates the entire automation pipeline: fetching real-time market data from multiple
-                            financial APIs, calculating portfolio metrics, validating calculations, generating visual components,
+                            Python orchestrates the entire automation pipeline: fetching real-time market data from Finnhub (primary, 50 calls/min) with
+                            Marketstack fallback (100 calls/month free tier), calculating portfolio metrics, validating calculations, generating visual components,
                             sourcing hero images from Pexels and Pixabay stock photo libraries, and coordinating AI-driven content creation
-                            through Azure OpenAI's GPT-5.1-chat deployment.
+                            through Azure OpenAI's GPT-5.1-chat deployment. API priority: Finnhub → Marketstack for stocks; Marketstack → Finnhub for S&P 500; Finnhub only for Bitcoin.
                         </p>
 
                         <h3 class="text-xl font-semibold mt-6 mb-3">Frontend & Presentation</h3>
@@ -232,24 +231,39 @@
                         </span>
                     </h2>
                     <div class="docs-section-body">
-                        <p class="text-gray-400 mb-4">
-                            A sophisticated 5-stage pipeline that autonomously transforms raw market data into
+                        <p class="text-gray-400 mb-6">
+                            A sophisticated 6-stage pipeline that autonomously transforms raw market data into
                             publication-ready weekly performance reports with AI-generated narratives.
+                        </p>
+
+                        <h3 class="text-xl font-semibold mt-6 mb-3">Step 0: API Status Check</h3>
+                        <div class="docs-chips-row">
+                            <span class="docs-chip">🔍 Connectivity Tests</span>
+                            <span class="docs-chip">✓ Finnhub Validation</span>
+                            <span class="docs-chip">✓ Marketstack Validation</span>
+                            <span class="docs-chip">✓ Azure OpenAI Validation</span>
+                            <span class="docs-chip">🚨 Pre-flight Checks</span>
+                        </div>
+                        <p class="text-gray-400 text-sm mt-3">
+                            Before fetching data, verify connectivity to all required APIs. Tests Finnhub with AAPL quote (validates primary data source),
+                            Marketstack with AAPL quote (validates fallback), and Azure OpenAI with minimal completion request (validates AI service).
+                            Handles authentication errors (401), rate limits (429), and connection timeouts. Blocks execution if no working data APIs available
+                            or if Azure OpenAI unavailable in AI mode. Provides early diagnostics to catch connectivity issues before attempting data fetch.
                         </p>
 
                         <h3 class="text-xl font-semibold mt-6 mb-3">Stage 1: Data Acquisition</h3>
                         <div class="docs-chips-row">
-                            <span class="docs-chip">📊 Alpha Vantage API</span>
-                            <span class="docs-chip">🔗 Finnhub API</span>
-                            <span class="docs-chip">📈 Marketstack API</span>
+                            <span class="docs-chip">📊 Finnhub API (Primary)</span>
+                            <span class="docs-chip">📈 Marketstack API (Secondary)</span>
                             <span class="docs-chip">🖼️ Pexels API</span>
                             <span class="docs-chip">🎨 Pixabay API</span>
                             <span class="docs-chip">🔄 Retry Logic (3x)</span>
                             <span class="docs-chip">⏱️ Rate Limiting</span>
                         </div>
                         <p class="text-gray-400 text-sm mt-3">
-                            Fetch current prices from Alpha Vantage (primary), with automatic fallback to Finnhub and Marketstack.
-                            Rate limiting enforced (12s between Alpha Vantage calls). Retry logic with exponential backoff handles
+                            Fetch current prices from Finnhub (primary, 50 calls/min), with automatic fallback to Marketstack (100 calls/month free tier).
+                            Stocks: Finnhub → Marketstack. S&P 500: Marketstack → Finnhub. Bitcoin: Finnhub only (BINANCE:BTCUSDT).
+                            Rate limiting: Finnhub 1.3s between calls, Marketstack 2s between calls. Retry logic with exponential backoff handles
                             transient network errors. Updates <code>master.json</code> with new price entries for all portfolio stocks and benchmarks.
                             Hero images sourced from Pexels and Pixabay using keyword-based search with smart filtering by resolution, popularity, and editor's choice status.
                         </p>
