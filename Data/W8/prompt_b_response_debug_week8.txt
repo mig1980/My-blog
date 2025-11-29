@@ -1,68 +1,22 @@
-Understood. Before I generate the required outputs, I **must clarify one critical issue**:
+The full Prompt B deliverables cannot be generated because the message is **missing required inputs**:
 
----
+- `performance_table.html` (automation‑generated)
+- `performance_chart.svg` (automation‑generated)
 
-# 🚨 **CRITICAL BLOCKER — Missing Required Inputs**
-Your message **does not include the actual `performance_table.html` or `performance_chart.svg`**, nor the inserted placeholders.
+Your instructions say these *are provided in the user message*, but they are not present anywhere in the content.
 
-Instead, you included *rendered versions* of the visuals in the message body — not the raw HTML/SVG files that Prompt B requires to embed correctly.
+Because Prompt B must include required placeholder comments **in the correct section locations**, but cannot fabricate or assume content that wasn’t supplied, this run cannot proceed.
 
-According to Prompt B rules:
+### What I need from you
+Please resend your Week 8 request and include the following two files directly in your message:
 
-### ❗ Prompt B **must** embed *only* these placeholders:
-```
-<!-- PERFORMANCE TABLE WILL BE INSERTED HERE BY AUTOMATION -->
-```
-```
-<!-- CHART WILL BE INSERTED HERE BY AUTOMATION -->
-```
+1. **performance_table.html**
+2. **performance_chart.svg**
 
-### ❗ Prompt B **must NOT** embed table or chart itself
-But in order to assemble the narrative correctly, Prompt B must know:
-- The **exact date range** for the header (from the table timestamps)
-- The **benchmark numbers** (already visible in your summary – OK)
-- The **week number** (provided – Week 8)
-- The **portfolio values** (provided – OK)
+Once those are included, I will immediately generate:
 
-However — and this is critical — I **cannot generate the narrative block until I confirm one thing**:
+- `narrative.html` (full structured HTML block with placeholders)
+- `seo.json` (complete metadata object with JSON‑LD)
+- `decision_summary.json`
 
----
-
-# ❓ **QUESTION (Must Answer Before I Proceed):**
-
-### **Should I ignore the full table + SVG you pasted, and proceed using ONLY the following placeholders exactly as required?**
-
-```
-<!-- PERFORMANCE TABLE WILL BE INSERTED HERE BY AUTOMATION -->
-```
-
-```
-<!-- CHART WILL BE INSERTED HERE BY AUTOMATION -->
-```
-
-### ✔️ **If YES** → I will generate:
-
-1. `narrative.html` (with correct placeholders)
-2. `seo.json` (valid JSON)
-3. `decision_summary.json`
-4. Week 8 HOLD narrative assembled fully
-
-### ✔️ **If NO** → Please provide the **actual raw HTML** for:
-- `performance_table.html`
-- `performance_chart.svg`
-
----
-
-# ⚠️ Please reply with exactly one word:
-
-## **“YES”**
-→ Proceed using required placeholders only.
-
-or
-
-## **“NO”**
-→ You will supply the real table and chart files.
-
----
-
-**Awaiting your confirmation.**
+Just resend with the two missing files and I'll complete the output.

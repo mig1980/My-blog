@@ -147,7 +147,7 @@ class PortfolioAutomation:
                     raise ValueError("AZURE_OPENAI_ENDPOINT environment variable not set")
                 self.client = AzureOpenAI(
                     api_key=self.azure_api_key,
-                    api_version="2024-10-21",
+                    api_version="latest",
                     azure_endpoint=azure_endpoint,
                 )
                 self.ai_enabled = True
@@ -353,6 +353,95 @@ class PortfolioAutomation:
         except Exception as e:
             self.add_step("Load Master Data", "error", f"Failed to load master.json: {str(e)}")
             raise
+
+    def call_ai_with_web_search(self, system_prompt, user_message, max_retries=3):
+        """Call Azure OpenAI Responses API with web search capability
+
+        Uses the new Responses API with web_search_preview tool to enable real-time
+        web search via Grounding with Bing Search. The model can search the web
+        and return responses with inline citations.
+
+        Args:
+            system_prompt: System instructions for the AI
+            user_message: User query/prompt
+            max_retries: Number of retry attempts for transient errors
+
+        Returns:
+            String containing AI response text with citations
+        """
+        if not self.client:
+            raise ValueError("AI client not initialized. Set AZURE_OPENAI_API_KEY environment variable.")
+
+        current_model = self.model
+        last_error = None
+
+        # Retry loop for transient network errors
+        for attempt in range(max_retries):
+            try:
+                # Use Responses API with web_search_preview tool
+                response = self.client.responses.create(
+                    model=current_model,
+                    tools=[{"type": "web_search_preview"}],
+                    input=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_message},
+                    ],
+                )
+                logging.info(f"✓ AI response received with web search ({current_model})")
+
+                # Log web search actions if present
+                for item in response.output:
+                    if hasattr(item, "type") and item.type == "web_search_call":
+                        if hasattr(item, "action") and hasattr(item.action, "query"):
+                            logging.info(f"  → Web search: {item.action.query}")
+
+                return response.output_text
+
+            except Exception as e:
+                last_error = e
+                error_msg = str(e)
+
+                # Check for rate limit (429) - respect Retry-After header
+                if "rate" in error_msg.lower() or "429" in error_msg:
+                    retry_after = 60  # Default wait time
+                    logging.warning(f"✗ Rate limit reached. Waiting {retry_after}s...")
+                    time.sleep(retry_after)
+                    continue
+
+                # Check for transient network errors - retry
+                is_transient = any(
+                    keyword in error_msg.lower()
+                    for keyword in [
+                        "connection",
+                        "timeout",
+                        "remote end closed",
+                        "broken pipe",
+                        "connection reset",
+                        "remotedisconnected",
+                    ]
+                )
+
+                if is_transient and attempt < max_retries - 1:
+                    # Retry with backoff
+                    wait_time = 2**attempt  # Exponential backoff: 1s, 2s, 4s
+                    logging.warning(f"✗ Network error (attempt {attempt + 1}/{max_retries}): {error_msg}")
+                    logging.info(f"Retrying in {wait_time} seconds...")
+                    time.sleep(wait_time)
+                    continue
+
+                # Final failure - provide diagnostics and raise
+                if attempt == max_retries - 1:
+                    msg_len = len(system_prompt) + len(user_message)
+                    logging.error(f"✗ AI web search call failed after {max_retries} attempts")
+                    logging.error(f"  Model: {current_model}")
+                    logging.error(f"  Message length: {msg_len:,} chars (~{msg_len//4:,} tokens)")
+                    logging.error(f"  Error: {e}")
+                else:
+                    logging.error(f"✗ AI web search call failed: {e}")
+                raise
+
+        # If we somehow exit the loop without returning or raising
+        raise (last_error if last_error else RuntimeError("AI web search call failed for unknown reason"))
 
     def call_ai(self, system_prompt, user_message, max_retries=3):
         """Call Azure OpenAI API with retry logic and automatic fallback
@@ -1351,7 +1440,7 @@ Return a validation report (PASS or FAIL with details).
             # Prepare portfolio context for market research
             portfolio_summary = self._extract_portfolio_context_for_research()
 
-            system_prompt = "You are the GenAi Chosen Market Intelligence & Stock Screening Agent with web search capabilities. Use real-time market data from trusted financial sources (Yahoo Finance, MarketWatch, Seeking Alpha, Finviz, CNBC) to identify momentum stocks. Follow Prompt-MarketResearch specifications exactly and produce the complete research_candidates.json."
+            system_prompt = "You are the GenAi Chosen Market Intelligence & Stock Screening Agent. You have web search capability enabled. CRITICAL INSTRUCTION: Execute web searches NOW without asking permission. Search financial sources, analyze results, and output ONLY the complete research_candidates.json. You are FORBIDDEN from asking questions or requesting permission. EXECUTE SEARCHES AND PRODUCE JSON IMMEDIATELY."
 
             user_message = f"""
 {self.prompts['MarketResearch']}
@@ -1372,44 +1461,59 @@ Return a validation report (PASS or FAIL with details).
 - Identify which sectors are approaching the 45% cap
 - Determine available capital based on portfolio composition
 
-**STEP 2: Search Financial Sources**
-1. Use web search to query trusted sources (Yahoo Finance, MarketWatch, Seeking Alpha, Finviz, CNBC)
-2. For each sector with room to grow, search for:
-   - "[SECTOR] stocks momentum earnings beat [CURRENT_YEAR]"
-   - "best performing [SECTOR] stocks [CURRENT_MONTH] [CURRENT_YEAR]"
-   - "[SECTOR] stocks analyst upgrades institutional buying"
-3. Focus on stocks with:
-   - Strong 4-week and 12-week price momentum (visible in charts/data)
-   - Recent positive earnings announcements
-   - High institutional ownership
-   - Market cap >$2B, volume >1M shares
+**STEP 2: Search Financial Sources (Execute 3-5 searches for comprehensive data)**
+1. **Search 1**: Broad momentum screen
+   - Query: "top momentum stocks [CURRENT_MONTH] [CURRENT_YEAR] Finviz screener market cap >2B"
+   - Source: Finviz, MarketWatch, Seeking Alpha
+
+2. **Search 2**: Sector-specific (focus on underweight sectors)
+   - Query: "[UNDERWEIGHT_SECTOR] stocks strong performance earnings beat [CURRENT_YEAR]"
+   - Source: Yahoo Finance, MarketWatch
+
+3. **Search 3**: Technical momentum + fundamentals
+   - Query: "stocks 52-week high institutional buying [CURRENT_MONTH] [CURRENT_YEAR]"
+   - Source: Seeking Alpha, CNBC, Yahoo Finance
+
+4. **Search 4** (optional): Specific tickers validation
+   - Query: "[TICKER] stock price momentum earnings catalyst [CURRENT_MONTH]"
+   - Source: Yahoo Finance for detailed metrics
+
+5. **Screening criteria** (apply to all search results):
+   - Strong price momentum (any visible positive trend: 1-month, 3-month, YTD)
+   - Recent positive catalysts (earnings, analyst upgrades, news)
+   - Market cap >$2B, average volume >1M shares
+   - Listed on NYSE or NASDAQ
 
 **STEP 3: Generate Market Research Candidates**
 1. From your search results, identify 3-5 high-quality candidates
-2. Extract real data from sources:
-   - Current stock price, 52-week range
-   - Recent momentum percentages (4-week, 12-week)
-   - Market cap, average volume
-   - Recent catalysts (earnings, news, analyst actions)
+2. Extract available data from sources. Use best available metrics:
+   - Current stock price and 52-week range (from Yahoo Finance, MarketWatch)
+   - Momentum: Use 1-month, 3-month, or any timeframe available from sources
+   - Market cap and volume (from stock overview pages)
+   - Recent catalysts: earnings reports, analyst upgrades, news items
    - Sector classification
+   - If exact metrics unavailable, use representative values based on available data
 3. Ensure candidates:
    - Do NOT duplicate any ticker in `current_holdings` list above
    - Comply with sector constraints (would not push any sector over 45%)
-   - Meet all screening criteria from Prompt-MarketResearch
+   - Have positive momentum and recent catalysts
 
 **STEP 4: Generate Output**
 - Generate the complete `research_candidates.json` file with the EXACT structure specified in OUTPUT FORMAT section
-- Use actual data from your web search results
-- Cite information sources in your search process
+- Use data extracted from your web search results
+- For momentum_4wk and momentum_12wk: If exact timeframes not available, use closest available (1-month, 3-month) or estimate based on price charts
+- For institutional_ownership: If not available, use "N/A" or estimate "High/Medium" based on market cap
+- Include source URLs in citations
 - Document portfolio_context with calculated sector exposure
+- IMPORTANT: You MUST produce valid JSON. Do not ask for clarifications or options - use best available data
 
 Current date: {datetime.now(timezone.utc).strftime('%Y-%m-%d')}
 
 Generate the complete JSON now.
 """
 
-            logging.info("Calling AI to generate research candidates with web search...")
-            response = self.call_ai(system_prompt, user_message)
+            logging.info("Calling AI with web search to generate research candidates...")
+            response = self.call_ai_with_web_search(system_prompt, user_message)
 
             # Extract JSON from response - try multiple patterns
             research_candidates = None
@@ -1538,7 +1642,7 @@ Generate the complete JSON now.
         logging.info("Running Prompt B: Narrative Writer...")
 
         try:
-            system_prompt = "You are the GenAi Chosen Narrative Writer. Follow Prompt B specifications exactly."
+            system_prompt = "You are the GenAi Chosen Narrative Writer. CRITICAL: The table and chart HTML are ALREADY GENERATED by automation. Do NOT request them. Generate narrative with placeholder comments for automation to insert them later. Follow all other Prompt B specifications."
 
             # Extract only essential data to stay under token limit
             narrative_data = self._extract_narrative_summary()
@@ -1633,44 +1737,61 @@ Generate the complete JSON now.
             # Note: Do NOT send actual table/chart HTML to Prompt B
             # Prompt B generates placeholders, final assembly inserts the actual content
 
+            # Extract only essential fields from research_candidates to reduce tokens
+            research_summary = {
+                "candidate_count": len(research_candidates.get("candidates", [])),
+                "candidates": [
+                    {
+                        "ticker": c.get("ticker"),
+                        "name": c.get("name"),
+                        "sector": c.get("sector"),
+                        "momentum_4w": c.get("momentum_4w", "N/A"),
+                        "catalyst": c.get("catalyst", ""),
+                        "rationale": c.get("rationale", ""),
+                        "recommendation": c.get("recommendation", ""),
+                    }
+                    for c in research_candidates.get("candidates", [])
+                ],
+                "portfolio_context": research_candidates.get("portfolio_context", {}),
+                "screening_summary": research_candidates.get("screening_summary", {}),
+            }
+            research_compact = json.dumps(research_summary, separators=(",", ":"))
+
             user_message = f"""
 {self.prompts['B']}
 
 ---
 
-Here is the summary data for Week {self.week_number}:
+**WEEK {self.week_number} DATA:**
 
 {data_json}
 
 ---
 
-RESEARCH CANDIDATES (from Prompt-MarketResearch):
-{json.dumps(research_candidates, indent=2)}
+**RESEARCH CANDIDATES (PRE-SCREENED STOCKS FOR CONSIDERATION):**
+{research_compact}
 
 ---
 
-INSTRUCTIONS:
+**IMPORTANT INSTRUCTIONS:**
 
-Generate the following files for Week {self.week_number}:
+The performance_table.html and performance_chart.svg have ALREADY been generated by the automation script and will be automatically inserted via regex pattern matching. You do NOT need to embed them or add placeholder comments.
 
-1. **narrative.html** - The prose narrative content block
-   - Use placeholder comments for table and chart insertion:
-     * `<!-- PERFORMANCE TABLE WILL BE INSERTED HERE BY AUTOMATION -->`
-     * `<!-- CHART WILL BE INSERTED HERE BY AUTOMATION -->`
-   - Do NOT include the actual table or chart HTML/SVG
-   - The automation will insert them during final assembly
+The automation will:
+- Insert the table after your "Performance Snapshot" heading and intro paragraph
+- Insert the chart after your "Performance Since Inception" heading and exactly 3 paragraphs
 
-2. **seo.json** - All SEO metadata (title, description, keywords, OG tags, etc.)
+Just follow the narrative structure defined in Prompt B - the automation handles visual insertion automatically.
 
-3. **decision_summary.json** - Tracking file with:
-   - decision (HOLD or REBALANCE)
-   - position_count
-   - triggers (array of trigger descriptions if any)
-   - trades (array of trade summaries if REBALANCE)
-   - portfolio_value
-   - sp500_alpha_bps
+**YOUR TASK - GENERATE NOW:**
 
-Generate all three JSON/HTML blocks now.
+1. **narrative.html** - Complete prose narrative with placeholder comments (do NOT include actual table/chart HTML)
+
+2. **seo.json** - SEO metadata (title, description, keywords, OG tags)
+
+3. **decision_summary.json** - Decision tracking (decision, position_count, triggers, trades, portfolio_value, sp500_alpha_bps)
+
+Produce all three files immediately using ONLY the data provided above. Do NOT ask for additional files.
 """
 
             # Log request size for debugging
