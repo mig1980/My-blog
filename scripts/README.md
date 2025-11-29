@@ -68,9 +68,11 @@ $env:FINNHUB_API_KEY = "your-key"  # Optional
 
 ## Enrichment Scripts
 
-### yfinance_enrichment.py ⭐ RECOMMENDED
+### yfinance_enrichment.py ⭐ INTEGRATED
 
 **FREE and UNLIMITED** - Enriches candidates with fundamental data from Yahoo Finance.
+
+**Note**: As of the latest version, this is **automatically called** by `portfolio_automation.py` after market research. You can still run it standalone if needed.
 
 #### Purpose
 Adds comprehensive fundamental data to research candidates:
@@ -313,12 +315,10 @@ python scripts/verify_icons.py
 
 ```bash
 # Step 1: Main portfolio automation
+# (Yahoo Finance enrichment now runs automatically after market research)
 python scripts/portfolio_automation.py --week 8
 
-# Step 2: Enrich with Yahoo Finance fundamentals (FREE)
-python scripts/yfinance_enrichment.py --week 8
-
-# Step 3: Execute rebalancing (if AI recommends REBALANCE)
+# Step 2: Execute rebalancing (if AI recommends REBALANCE)
 python scripts/automated_rebalance.py --week 8 --dry-run  # Preview
 python scripts/automated_rebalance.py --week 8           # Execute
 

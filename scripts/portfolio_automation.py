@@ -38,6 +38,12 @@ from openai import AzureOpenAI
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+# Import enrichment for integrated workflow
+try:
+    from yfinance_enrichment import YahooFinanceEnricher
+except ImportError:
+    YahooFinanceEnricher = None  # type: ignore  # Optional dependency
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -1424,6 +1430,59 @@ Return a validation report (PASS or FAIL with details).
             },
             "week_number": self.week_number,
         }
+
+    def enrich_candidates_with_yfinance(self):
+        """Enrich research candidates with Yahoo Finance fundamental data
+
+        Runs AFTER Prompt-MarketResearch generates research_candidates.json
+        but BEFORE Prompt B uses it to make portfolio decisions.
+
+        Adds: company info, valuation ratios, profitability metrics, growth rates,
+        financial health indicators - all FREE and unlimited via yfinance library.
+        """
+        if YahooFinanceEnricher is None:
+            logging.warning("⚠️ yfinance library not available - skipping enrichment")
+            logging.warning("   Install with: pip install yfinance")
+            self.add_step("Yahoo Finance Enrichment", "warning", "yfinance not installed")
+            return
+
+        try:
+            logging.info("Enriching candidates with Yahoo Finance fundamentals...")
+            enricher = YahooFinanceEnricher(week_number=self.week_number)
+            success = enricher.run()
+
+            if success:
+                # Read the enriched data to report on it
+                candidates_file = DATA_DIR / f"W{self.week_number}" / "research_candidates.json"
+                if candidates_file.exists():
+                    with open(candidates_file, "r", encoding="utf-8") as f:
+                        enriched_data = json.load(f)
+
+                    enrichment_info = enriched_data.get("enrichment", {}).get("yahoo_finance", {})
+                    total = enrichment_info.get("total", 0)
+                    enriched = enrichment_info.get("enriched", 0)
+                    fields_added = enrichment_info.get("fields_added", 0)
+
+                    logging.info(
+                        f"✅ Yahoo Finance enrichment: {enriched}/{total} candidates, {fields_added} fields added"
+                    )
+                    self.add_step(
+                        "Yahoo Finance Enrichment",
+                        "success",
+                        f"Enriched {enriched}/{total} candidates with {fields_added} fundamental fields",
+                    )
+                else:
+                    logging.warning("⚠️ research_candidates.json not found after enrichment")
+                    self.add_step("Yahoo Finance Enrichment", "warning", "Candidates file not found")
+            else:
+                logging.warning("⚠️ Yahoo Finance enrichment returned failure status")
+                self.add_step("Yahoo Finance Enrichment", "warning", "Enrichment failed but non-blocking")
+
+        except Exception as e:
+            # Non-blocking: enrichment failure should not stop the pipeline
+            logging.warning(f"⚠️ Yahoo Finance enrichment error: {e}")
+            logging.warning("   Continuing without enrichment (non-blocking)")
+            self.add_step("Yahoo Finance Enrichment", "warning", f"Error: {str(e)} (non-blocking)")
 
     def run_prompt_market_research(self):
         """Prompt-MarketResearch: Generate research_candidates.json with 3-5 pre-screened stock candidates
@@ -3113,14 +3172,21 @@ Generate ONLY the body content now (header template, main section, footer templa
             errors.append('Missing performance chart (class="myblock-chart-container")')
 
         # 9. Holdings list
-        holdings_pattern = r"<ul[^>]*>.*?</ul>"
-        if not re.search(holdings_pattern, html, re.DOTALL):
-            errors.append("Missing holdings list (<ul>...</ul>)")
-        else:
-            # Check for variable holdings count (6-10 items)
-            holdings_items = len(re.findall(r"<li[^>]*>", html))
-            if holdings_items < 6 or holdings_items > 10:
-                warnings.append(f"Holdings list has {holdings_items} items (expected 6-10)")
+        # Look for holdings list specifically (contains ticker symbols like "WDC", "STX", etc.)
+        holdings_ul_pattern = r"<ul[^>]*>(.*?)</ul>"
+        ul_matches = re.findall(holdings_ul_pattern, html, re.DOTALL)
+        holdings_count = 0
+        for ul_content in ul_matches:
+            # Count <li> items that contain ticker patterns (e.g., "(WDC)", "(STX)")
+            ticker_items = re.findall(r"<li[^>]*>.*?\([A-Z]{2,5}\).*?</li>", ul_content, re.DOTALL)
+            if len(ticker_items) >= 6:  # This looks like the holdings list
+                holdings_count = len(ticker_items)
+                break
+
+        if holdings_count == 0:
+            errors.append("Missing holdings list with ticker symbols")
+        elif holdings_count < 6 or holdings_count > 10:
+            warnings.append(f"Holdings list has {holdings_count} items (expected 6-10)")
 
         # 10. Heatmap button
         if "heatmap-cta-button" not in html:
@@ -3980,6 +4046,10 @@ Generate ONLY the body content now (header template, main section, footer templa
             if self.ai_enabled:
                 # Generate research candidates BEFORE narrative
                 self.run_prompt_market_research()
+
+                # Step 4b: Enrich candidates with Yahoo Finance fundamentals
+                # This adds company info, ratios, growth metrics to help Prompt B make better decisions
+                self.enrich_candidates_with_yfinance()
 
             # Step 5: Narrative generation (requires AI)
             if self.ai_enabled:

@@ -60,13 +60,12 @@ $env:MARKETSTACK_API_KEY = "your-marketstack-key"
 ### Weekly Automation Workflow
 
 ```bash
-# Step 1: Run main portfolio automation (price fetch, calculations, AI analysis)
+# Step 1: Run main portfolio automation
+# This now includes: price fetch, calculations, market research,
+# Yahoo Finance enrichment (automatic), and AI analysis
 python scripts/portfolio_automation.py --week 8
 
-# Step 2: Enrich candidates with Yahoo Finance fundamentals (FREE, unlimited)
-python scripts/yfinance_enrichment.py --week 8
-
-# Step 3: (Optional) Execute rebalancing if AI recommends changes
+# Step 2: (Optional) Execute rebalancing if AI recommends changes
 python scripts/automated_rebalance.py --week 8
 
 # Step 4: Generate newsletter narrative
@@ -83,9 +82,10 @@ python scripts/generate_newsletter_html.py --week 8
    ├─ Marketstack API (primary): 12 weeks EOD data
    └─ Finnhub API (fallback): Current quotes
 
-2. ENRICHMENT
-   ├─ Marketstack: Price, momentum (4w/12w), volume
-   └─ Yahoo Finance (yfinance): Fundamentals, ratios, growth metrics
+2. MARKET RESEARCH & ENRICHMENT
+   ├─ Prompt-MarketResearch: AI generates 3-5 candidates with web search
+   ├─ Marketstack: Price, momentum (4w/12w), volume (built-in)
+   └─ Yahoo Finance: Fundamentals, ratios, growth (automatic, integrated)
 
 3. AI ANALYSIS
    ├─ Prompt A: Validate calculations

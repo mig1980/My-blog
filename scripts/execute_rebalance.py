@@ -127,7 +127,7 @@ def prompt_exits(current_stocks: List[dict]) -> List[Dict[str, Any]]:
 
     for ticker in exit_tickers:
         # Find stock in current holdings
-        stock: Optional[dict] = next((s for s in current_stocks if s["ticker"] == ticker), None)
+        stock: Optional[Dict] = next((s for s in current_stocks if s["ticker"] == ticker), None)
         if not stock:
             print(f"⚠️  Warning: {ticker} not found in current holdings - skipping")
             continue

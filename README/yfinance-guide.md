@@ -104,13 +104,22 @@ python scripts/yfinance_enrichment.py --help
 
 ### Integration with Automation
 
-Add after `portfolio_automation.py` in your weekly workflow:
+**Good News**: Yahoo Finance enrichment is now **automatically integrated** into `portfolio_automation.py`!
+
+The enrichment runs automatically:
+1. After Prompt-MarketResearch generates candidates
+2. Before Prompt B uses the data to make decisions
+
+No separate command needed! Just run:
 
 ```bash
-# Step 1: Main automation (includes Marketstack enrichment)
+# Main automation (includes automatic Yahoo Finance enrichment)
 python scripts/portfolio_automation.py --week 8
+```
 
-# Step 2: Add Yahoo Finance fundamentals
+**Standalone Usage** (if needed):
+```bash
+# Manual enrichment (useful for testing or re-enrichment)
 python scripts/yfinance_enrichment.py --week 8
 ```
 
