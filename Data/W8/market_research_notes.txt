@@ -1,0 +1,49 @@
+CANDIDATES IDENTIFIED:
+
+GOOGL – Alphabet Inc.
+• Price/Momentum: Trading near all‑time highs around the $299–$320 range with strong volume, breaking out to new 52‑week highs with volume nearly double average, confirming institutional accumulation.
+• Market Cap: ~$3.9T among largest global mega‑caps.
+• Momentum (4w/12w): Strong multi‑week trend, up ~13.8% in the last week and 20.1% over the past month.
+• Catalysts: Gemini 3 release driving AI enthusiasm; continued cloud and ads strength; institutional buying confirmed in MarketBeat 13F tracker.
+• Sector: Communication Services.
+• Institutional Ownership: High—confirmed through institutional purchase flows.
+• Fit: Provides AI exposure without adding to tech hardware concentration; aligns with portfolio's desire to diversify away from heavy hardware/semis.
+
+LLY – Eli Lilly & Co.
+• Price/Momentum: Trading at new 52‑week highs with 34.5% 1‑month return and nearly 50% 1‑year gain.
+• Market Cap: ~$1T.
+• Momentum: Strong multi‑period price appreciation supported by healthcare sector strength.
+• Catalysts: GLP‑1 demand (obesity/diabetes), strong pipeline, broad healthcare momentum.
+• Sector: Healthcare.
+• Institutional Ownership: Very high due to mega‑cap status and constant inflow into healthcare winners.
+• Fit: Portfolio has only moderate healthcare exposure—LLY offers strong growth + defensive balance.
+
+AMAT – Applied Materials
+• Price/Momentum: Up 5% in last day, 7.7% past week, 5% in month; hitting new 52‑week highs.
+• Market Cap: ~$193.5B.
+• Catalysts: Broad AI/semiconductor spending; equipment demand driven by hyperscaler fab expansions.
+• Sector: Technology / Semiconductors.
+• Institutional Ownership: High—semicap names heavily institutionally owned.
+• Fit: Although tech exposure exists already, AMAT offers different industry exposure (semicap rather than storage or software), and momentum is extremely strong. Use cautiously given the tech sector is already well represented.
+
+REGN – Regeneron Pharmaceuticals
+• Price/Momentum: Leading large‑cap momentum stock with ~35% 1‑month return.
+• Market Cap: Large‑cap biotech leader.
+• Catalysts: Broad healthcare strength, strong drug portfolio, multiple positive pipeline/trial updates across biotech sector.
+• Sector: Healthcare / Biotechnology.
+• Institutional Ownership: High (typical for leading biotech).
+• Fit: Adds innovative biotech exposure, distinct from CVS and provides strong growth momentum within an underweighted sector.
+
+SOURCES USED:
+• Finviz Screener – https://finviz.com
+• Zacks / FINVIZ Momentum Article – https://finviz.com
+• Benzinga Momentum Rankings – https://benzinga.com
+• ValueSense Momentum Overview – https://valuesense.io
+• Validea High Momentum Stocks – https://validea.com
+• Schwab Sector Outlook – https://schwab.com ci[Top Stocks Hitting 52-Week Highs November 2025 Analysis](https://stocksrunner.com/articles/2025-11-22-top-stocks-hitting-52-week-highs)
+• Trefis 52‑Week Highs (LLY, AMAT, GOOGL, REGN Data) – https://trefis.com
+• MarketBeat Institutional Buying Tracker – https://marketbeat.com
+• Chart.Monkey 52‑Week High Technical Analysis (GOOGL, LITE) – https://chart.monkey
+• Tickeron 52‑Week High Article – https://tickeron.com
+
+Prompt‑MarketResearch completed — research notes ready for Prompt B integration.[Institutional Buying Tracker | Top 13F Purchases - MarketBeat](https://www.marketbeat.com/stocks/institutional-buying-tracker/)[Large Cap Stocks Trading At 52-Week High - trefis.com](https://www.trefis.com/stock/spy/articles/583906/large-cap-stocks-trading-at-52-week-high-91/2025-11-26)[Best Stocks to Buy Now for November 2025 - Zacks Investment Research](https://www.zacks.com/featured-articles/101/best-stocks-to-buy-now)[Stocks Surge to New Heights: Multiple Equities Hit 52-Week Highs on ...](https://tickeron.com/blogs/stocks-surge-to-new-heights-multiple-equities-hit-52-week-highs-on-november-19-2025-11545/)

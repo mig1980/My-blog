@@ -1,5 +1,4 @@
-"""
-Yahoo Finance Enrichment Script
+"""Yahoo Finance Enrichment Script
 Enriches research_candidates.json with fundamental data from Yahoo Finance
 
 FREE and UNLIMITED - No API key required!
@@ -7,9 +6,12 @@ Uses yfinance library (unofficial Yahoo Finance API wrapper)
 
 Data Available:
 - Company info: sector, industry, description, employees, website
-- Financial metrics: P/E ratio, market cap, profit margins
-- Growth metrics: revenue growth, earnings growth
-- Balance sheet: debt, cash, current ratio
+- Valuation: P/E ratio, P/B ratio, PEG ratio, market cap, enterprise value
+- Profitability: profit margins, gross margins, ROE, ROA, operating margins
+- Growth: revenue growth, earnings growth, quarterly earnings growth
+- Financial health: debt/equity, current ratio, quick ratio, cash, debt, free cash flow
+- Analyst sentiment: recommendation, price target, number of analysts
+- Ownership: institutional ownership %, short interest %
 
 Usage:
     pip install yfinance
@@ -38,24 +40,34 @@ except ImportError:
     print("Run: pip install yfinance")
     sys.exit(1)
 
+# Import centralized configuration constants
+from config import DELAY_BETWEEN_TICKERS
+
 # Configure paths
 SCRIPT_DIR = Path(__file__).resolve().parent
 WORKSPACE_ROOT = SCRIPT_DIR.parent
 DATA_DIR = WORKSPACE_ROOT / "Data"
 
-DELAY_BETWEEN_TICKERS = 0.5  # Be respectful to Yahoo servers
+# DELAY_BETWEEN_TICKERS imported from config.py (0.5s - courtesy delay for Yahoo servers)
 
 
 class YahooFinanceEnricher:
     """Enriches candidates using Yahoo Finance (yfinance library)"""
 
-    def __init__(self, week_number: int):
+    def __init__(self, week_number: int, force_refresh: bool = False):
         self.week_number = week_number
+        self.force_refresh = force_refresh
         self.data_dir = DATA_DIR / f"W{week_number}"
         self.candidates_file = self.data_dir / "research_candidates.json"
         self.log_file = self.data_dir / "yfinance_enrichment.log"
         self.candidates: List[Dict] = []
-        self.stats = {"total": 0, "enriched": 0, "failed": 0, "fields_added": 0}
+        self.stats = {
+            "total": 0,
+            "enriched": 0,
+            "failed": 0,
+            "fields_added": 0,
+            "skipped": 0,
+        }
 
         self._setup_logging()
 
@@ -80,7 +92,7 @@ class YahooFinanceEnricher:
         self.logger.info("✅ Yahoo Finance enrichment initialized")
 
     def load_candidates(self) -> bool:
-        """Load research_candidates.json"""
+        """Load research_candidates.json and check if already enriched"""
         try:
             if not self.candidates_file.exists():
                 self.logger.error(f"❌ File not found: {self.candidates_file}")
@@ -88,11 +100,23 @@ class YahooFinanceEnricher:
 
             with open(self.candidates_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                # Handle both formats: {"candidates": [...]} or [...]
-                if isinstance(data, dict):
-                    self.candidates = data.get("candidates", [])
-                else:
-                    self.candidates = data
+
+            # Check if already enriched (unless --force)
+            if not self.force_refresh:
+                enrichment_info = data.get("enrichment", {}).get("yahoo_finance", {})
+                if enrichment_info:
+                    timestamp = enrichment_info.get("timestamp", "unknown")
+                    enriched_count = enrichment_info.get("enriched", 0)
+                    self.logger.info(f"✅ Already enriched on {timestamp}")
+                    self.logger.info(f"   Enriched: {enriched_count} candidates")
+                    self.logger.info("   Use --force to re-enrich")
+                    return False  # Skip - already done
+
+            # Handle both formats: {"candidates": [...]} or [...]
+            if isinstance(data, dict):
+                self.candidates = data.get("candidates", [])
+            else:
+                self.candidates = data
 
             if not self.candidates:
                 self.logger.warning("⚠️  No candidates found")
@@ -110,10 +134,12 @@ class YahooFinanceEnricher:
 
         Fetches comprehensive data in one API call per ticker:
         - Company info: sector, industry, description, employees, website
-        - Valuation: P/E ratio, P/B ratio, market cap
-        - Profitability: profit margins, ROE, ROA
-        - Growth: revenue growth, earnings growth
-        - Financial health: debt/equity, current ratio, cash position
+        - Valuation: P/E ratio, P/B ratio, PEG ratio, market cap, enterprise value
+        - Profitability: profit margins, gross margins, ROE, ROA, operating margins
+        - Growth: revenue growth, earnings growth, quarterly earnings growth
+        - Financial health: debt/equity, current ratio, quick ratio, cash, free cash flow
+        - Analyst sentiment: recommendation (1-5), price target, analyst count
+        - Ownership: institutional ownership %, short interest %
         """
         ticker = candidate.get("ticker", "UNKNOWN")
         self.logger.info(f"\n🔍 Enriching {ticker}...")
@@ -220,6 +246,77 @@ class YahooFinanceEnricher:
             if "fiftyTwoWeekLow" in info and info["fiftyTwoWeekLow"]:
                 enrichments["year_low"] = round(info["fiftyTwoWeekLow"], 2)
 
+            # ============ NEW FIELDS (Prompt-B requirements) ============
+
+            # Institutional ownership (explicitly required by Prompt-B)
+            if "heldPercentInstitutions" in info and info["heldPercentInstitutions"]:
+                enrichments["institutional_ownership_pct"] = round(info["heldPercentInstitutions"] * 100, 1)
+                self.logger.info(f"   • Institutional Ownership: {info['heldPercentInstitutions']*100:.1f}%")
+
+            # Analyst sentiment (1.0 = Strong Buy, 5.0 = Strong Sell)
+            if "recommendationMean" in info and info["recommendationMean"]:
+                enrichments["analyst_rating"] = round(info["recommendationMean"], 2)
+                # Convert to human-readable
+                rating_val = info["recommendationMean"]
+                if rating_val <= 1.5:
+                    rating_label = "Strong Buy"
+                elif rating_val <= 2.5:
+                    rating_label = "Buy"
+                elif rating_val <= 3.5:
+                    rating_label = "Hold"
+                elif rating_val <= 4.5:
+                    rating_label = "Sell"
+                else:
+                    rating_label = "Strong Sell"
+                enrichments["analyst_rating_label"] = rating_label
+                self.logger.info(f"   • Analyst Rating: {rating_val:.2f} ({rating_label})")
+
+            if "numberOfAnalystOpinions" in info and info["numberOfAnalystOpinions"]:
+                enrichments["analyst_count"] = info["numberOfAnalystOpinions"]
+
+            if "targetMeanPrice" in info and info["targetMeanPrice"]:
+                enrichments["analyst_target_price"] = round(info["targetMeanPrice"], 2)
+                # Calculate upside if we have current price
+                current = info.get("currentPrice") or info.get("regularMarketPrice")
+                if current and current > 0:
+                    upside = ((info["targetMeanPrice"] - current) / current) * 100
+                    enrichments["analyst_upside_pct"] = round(upside, 1)
+                    self.logger.info(f"   • Analyst Target: ${info['targetMeanPrice']:.2f} ({upside:+.1f}% upside)")
+
+            # Short interest (risk/squeeze indicator)
+            if "shortPercentOfFloat" in info and info["shortPercentOfFloat"]:
+                enrichments["short_interest_pct"] = round(info["shortPercentOfFloat"] * 100, 2)
+                self.logger.info(f"   • Short Interest: {info['shortPercentOfFloat']*100:.2f}%")
+
+            # PEG ratio (growth-adjusted valuation)
+            if "trailingPegRatio" in info and info["trailingPegRatio"]:
+                enrichments["peg_ratio"] = round(info["trailingPegRatio"], 2)
+                self.logger.info(f"   • PEG Ratio: {info['trailingPegRatio']:.2f}")
+
+            # Free cash flow (cash generation quality)
+            if "freeCashflow" in info and info["freeCashflow"]:
+                fcf_millions = info["freeCashflow"] / 1_000_000
+                enrichments["free_cashflow_millions"] = round(fcf_millions, 1)
+                self.logger.info(f"   • Free Cash Flow: ${fcf_millions:.1f}M")
+
+            # Quarterly earnings growth (recent performance)
+            if "earningsQuarterlyGrowth" in info and info["earningsQuarterlyGrowth"]:
+                enrichments["earnings_growth_quarterly"] = round(info["earningsQuarterlyGrowth"] * 100, 1)
+                self.logger.info(f"   • Quarterly Earnings Growth: {info['earningsQuarterlyGrowth']*100:+.1f}%")
+
+            # Gross margins (pricing power)
+            if "grossMargins" in info and info["grossMargins"]:
+                enrichments["gross_margin_pct"] = round(info["grossMargins"] * 100, 2)
+
+            # Quick ratio (stricter liquidity)
+            if "quickRatio" in info and info["quickRatio"]:
+                enrichments["quick_ratio"] = round(info["quickRatio"], 2)
+
+            # Enterprise value (better for comparisons)
+            if "enterpriseValue" in info and info["enterpriseValue"]:
+                ev_billions = info["enterpriseValue"] / 1_000_000_000
+                enrichments["enterprise_value_billions"] = round(ev_billions, 2)
+
             if enrichments:
                 self.stats["enriched"] += 1
                 self.stats["fields_added"] += len(enrichments)
@@ -315,9 +412,14 @@ class YahooFinanceEnricher:
 def main():
     parser = argparse.ArgumentParser(description="Enrich candidates with Yahoo Finance fundamentals (free, unlimited)")
     parser.add_argument("--week", type=int, required=True, help="Week number (e.g., 7)")
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Force re-enrichment even if already done",
+    )
     args = parser.parse_args()
 
-    enricher = YahooFinanceEnricher(args.week)
+    enricher = YahooFinanceEnricher(args.week, force_refresh=args.force)
     enricher.run()
     sys.exit(0)  # Always success to not break automation
 

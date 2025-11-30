@@ -190,6 +190,14 @@ Before finalizing candidates, verify each has:
 
 ## OUTPUT FORMAT (research_candidates.json)
 
+> **AUTOMATION NOTE:** You generate the BASE candidate data below. The automation script then enriches each candidate with:
+> - **Price/Momentum**: Precise 4w/12w momentum, volume from yfinance historical data
+> - **Fundamentals**: P/E, PEG, ROE, profit margins, earnings growth from yfinance
+> - **Analyst Sentiment**: Rating (1-5), price target, upside % from yfinance  
+> - **Ownership/Risk**: Institutional %, short interest %, beta from yfinance
+>
+> Your job: Provide ticker, name, sector, catalyst, and rationale. The automation handles precise numerical enrichment.
+
 Generate a JSON file with this exact structure:
 
 ```json
@@ -214,82 +222,47 @@ Generate a JSON file with this exact structure:
     {
       "ticker": "AVGO",
       "name": "Broadcom Inc.",
-      "price": "$176.50",
-      "sector": "Technology - Semiconductors",
-      "market_cap": "$450B",
-      "momentum_4w": "+18.2%",
-      "momentum_12w": "+35.7%",
-      "volume_avg": "4.2M shares/day",
-      "institutional_ownership": "72%",
+      "sector": "Technology",
+      "industry": "Semiconductors",
       "catalyst": "Q4 earnings beat by 12%, raised AI chip guidance for 2025",
-      "fundamentals": "Revenue +21% YoY, EPS beat $1.42 vs $1.28 est, gross margin 68%",
-      "relative_strength": "Outperforming SMH by +8% over 12 weeks",
-      "rationale": "Top 3 SMH holding with superior momentum vs current tech positions. AI infrastructure exposure with VMware integration progressing. Strong institutional support (72% ownership) and technical breakout above $170. Would increase tech exposure to 51% if established at 9% weight - monitor sector limit.",
-      "recommendation": "Strong candidate for 9-12% position if tech sector tolerance allows. Alternative: wait for sector rotation to deploy at higher weight."
+      "rationale": "Top 3 SMH holding with AI infrastructure exposure. VMware integration progressing. Would increase tech exposure - monitor sector limit.",
+      "recommendation": "Strong candidate for 9-12% position if tech sector tolerance allows."
     },
     {
       "ticker": "CAT",
       "name": "Caterpillar Inc.",
-      "price": "$348.20",
-      "sector": "Industrials - Machinery",
-      "market_cap": "$178B",
-      "momentum_4w": "+12.5%",
-      "momentum_12w": "+28.3%",
-      "volume_avg": "2.8M shares/day",
-      "institutional_ownership": "68%",
+      "sector": "Industrials",
+      "industry": "Machinery",
       "catalyst": "Infrastructure spending bill boosting equipment demand, China reopening tailwinds",
-      "fundamentals": "Revenue +15% YoY, backlog at record $30B, margin expansion to 18%",
-      "relative_strength": "Leading XLI industrial sector, +12% vs peers",
-      "rationale": "Diversifies into Industrials sector (currently 12%, room for growth). Exposure to infrastructure mega-trend and global construction cycle. Strong pricing power and backlog visibility. No portfolio overlap. Would fit well at 10-12% weight without breaching sector limits.",
-      "recommendation": "Excellent diversification candidate. Adds cyclical exposure with defensive characteristics."
+      "rationale": "Diversifies into Industrials (currently 12%). Infrastructure mega-trend exposure. Strong pricing power and backlog visibility.",
+      "recommendation": "Excellent diversification candidate. Adds cyclical exposure."
     },
     {
       "ticker": "CRWD",
       "name": "CrowdStrike Holdings",
-      "price": "$285.40",
-      "sector": "Technology - Cybersecurity",
-      "market_cap": "$68B",
-      "momentum_4w": "+15.8%",
-      "momentum_12w": "+42.1%",
-      "volume_avg": "3.1M shares/day",
-      "institutional_ownership": "64%",
+      "sector": "Technology",
+      "industry": "Cybersecurity",
       "catalyst": "Q3 beat with +33% ARR growth, raised full-year guidance, new product launches",
-      "fundamentals": "Revenue +33% YoY, net retention 120%, rule of 40 score: 53",
-      "relative_strength": "Best-in-class cybersecurity growth, +15% vs XLK tech",
-      "rationale": "High-growth SaaS with strong momentum and fundamentals. Cybersecurity secular growth theme. Would complement existing tech positions with different business model (subscription vs hardware). 64% institutional ownership provides stability. Tech sector consideration: adds 9-10% would bring total to 51-52% (monitor limit).",
-      "recommendation": "Strong growth candidate. Consider for 9-10% position if sector exposure acceptable, or wait for tech trimming."
+      "rationale": "High-growth SaaS with cybersecurity secular theme. Complements existing tech with different business model (subscription vs hardware).",
+      "recommendation": "Strong growth candidate. Consider if sector exposure acceptable."
     },
     {
       "ticker": "LLY",
       "name": "Eli Lilly and Company",
-      "price": "$592.30",
-      "sector": "Healthcare - Pharmaceuticals",
-      "market_cap": "$562B",
-      "momentum_4w": "+8.7%",
-      "momentum_12w": "+22.4%",
-      "volume_avg": "2.6M shares/day",
-      "institutional_ownership": "78%",
+      "sector": "Healthcare",
+      "industry": "Pharmaceuticals",
       "catalyst": "GLP-1 drugs (Mounjaro/Zepbound) driving massive revenue growth, new indications approved",
-      "fundamentals": "Revenue +36% YoY, GLP-1 sales $3.1B in Q3, pipeline strong with Alzheimer's drug approval",
-      "relative_strength": "Outperforming XLV healthcare by +18% over 12 weeks",
-      "rationale": "Best-in-class exposure to obesity/diabetes mega-trend. Currently no healthcare exposure in portfolio (0%). Adds defensive characteristics while maintaining growth profile. Large cap with institutional support (78%). Strong pipeline beyond GLP-1. Would establish 8-10% position in new sector.",
-      "recommendation": "Excellent diversification into healthcare. Reduces tech concentration while maintaining growth exposure."
+      "rationale": "Best-in-class obesity/diabetes exposure. Currently no healthcare in portfolio. Adds defensive characteristics with growth profile.",
+      "recommendation": "Excellent diversification into healthcare. Reduces tech concentration."
     },
     {
       "ticker": "ANET",
       "name": "Arista Networks",
-      "price": "$410.60",
-      "sector": "Technology - Networking Equipment",
-      "market_cap": "$128B",
-      "momentum_4w": "+11.2%",
-      "momentum_12w": "+31.8%",
-      "volume_avg": "1.4M shares/day",
-      "institutional_ownership": "61%",
+      "sector": "Technology",
+      "industry": "Networking Equipment",
       "catalyst": "Q3 beat with AI data center revenue +40%, raised 2025 guidance on hyperscaler demand",
-      "fundamentals": "Revenue +20% YoY, gross margin 64%, operating margin 42% (best in class)",
-      "relative_strength": "Outperforming networking peers by +25% over 12 weeks, momentum accelerating",
-      "rationale": "Pure-play AI infrastructure with hyperscaler exposure (Microsoft, Meta, AWS). Best-in-class margins and execution. Tech sector: would add to concentration (42% → 51% at 9% weight). Alternative: consider as replacement for weaker tech position. Strong liquidity and institutional support.",
-      "recommendation": "High-quality tech name. Best deployed as replacement during rebalance or if tech sector exposure drops below 40%."
+      "rationale": "Pure-play AI infrastructure with hyperscaler exposure. Best-in-class margins. Consider as replacement for weaker tech position.",
+      "recommendation": "High-quality tech. Best deployed as replacement during rebalance."
     }
   ],
   "screening_summary": {
@@ -298,9 +271,7 @@ Generate a JSON file with this exact structure:
     "quality_screen": "18 stocks with earnings beats and >40% institutional ownership",
     "final_candidates": "5 stocks (diversified across 4 sectors)",
     "sector_diversification": "3 Technology, 1 Industrials, 1 Healthcare",
-    "avg_momentum_4w": "+13.3%",
-    "avg_momentum_12w": "+30.1%",
-    "notes": "Technology sector at portfolio limit - prioritize non-tech candidates (CAT, LLY) unless rebalancing out of existing tech positions. All candidates have strong institutional support (61-78%) and positive earnings momentum."
+    "notes": "Technology sector at portfolio limit - prioritize non-tech candidates (CAT, LLY) unless rebalancing out of existing tech positions."
   },
   "citations": [
     {"source": "Yahoo Finance", "url": "https://finance.yahoo.com", "data_retrieved": "Stock prices, market caps, volumes"},
@@ -311,19 +282,28 @@ Generate a JSON file with this exact structure:
 }
 ```
 
+> **POST-PROCESSING NOTE:** After this JSON is generated, the automation script enriches each candidate with precise data from yfinance:
+> - `price`, `momentum_4w`, `momentum_12w`, `volume_avg` (from historical data)
+> - `pe_ratio_forward`, `peg_ratio`, `profit_margin_pct`, `roe_pct` (fundamentals)
+> - `analyst_rating`, `analyst_target_price`, `analyst_upside_pct` (sentiment)
+> - `institutional_ownership_pct`, `short_interest_pct`, `beta` (ownership/risk)
+>
+> This separation allows you to focus on qualitative research (catalysts, rationale) while automation handles quantitative precision.
+
 ---
 
 ## CRITICAL REQUIREMENTS
 
 1. **Always include 3–5 candidates** (never fewer, never more)
 2. **Diversify across sectors** unless portfolio is severely underweight one sector
-3. **Flag sector constraint issues** in rationale (e.g., "would breach 45% tech limit")
-4. **Include specific data points**: prices, momentum %, market cap, ownership %
-5. **Explain thematic fit**: how stock complements existing portfolio
-6. **Recent catalyst**: within last 4 weeks (earnings, news, upgrades)
-7. **Actionable recommendations**: "Strong candidate for 10% position" or "Wait for sector rotation"
-8. **Include citations array**: Add a "citations" field listing all web sources used (see format below)
-9. **NEVER insert markdown links anywhere except the citations array**: Do NOT place citation links `[text](url)` inside JSON property names, property values, or anywhere in the candidates/screening_summary sections. All source attributions MUST go exclusively in the citations array.
+3. **Required fields per candidate**: ticker, name, sector, industry, catalyst, rationale, recommendation
+4. **Flag sector constraint issues** in rationale (e.g., "would breach 45% tech limit")
+5. **Recent catalyst**: within last 4 weeks (earnings, news, upgrades)
+6. **Actionable recommendations**: "Strong candidate for 10% position" or "Wait for sector rotation"
+7. **Include citations array**: Add a "citations" field listing all web sources used
+8. **NEVER insert markdown links anywhere except the citations array**
+
+> **Note**: Numerical data (price, momentum %, market cap, P/E, institutional %) will be added by automation via yfinance enrichment. Focus on qualitative research: catalysts, rationale, thematic fit.
 
 ---
 

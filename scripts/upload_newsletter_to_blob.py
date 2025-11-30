@@ -135,7 +135,6 @@ def upload_newsletter_to_blob(week_num: int, overwrite: bool = False) -> dict:
         }
 
     except ImportError as ie:
-        missing_module = str(ie).split("'")[1] if "'" in str(ie) else "unknown"
         if "azure.identity" in str(ie):
             raise ImportError(
                 "Azure Identity SDK not installed. Install with:\n" "pip install azure-identity azure-storage-blob"

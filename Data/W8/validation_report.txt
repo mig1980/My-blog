@@ -1,0 +1,11 @@
+Prompt A Validation Report - Week 8
+Generated: 2025-11-30 00:56:15
+================================================================================
+
+❌ **Prompt A Validation: FAIL**
+
+Found 1 error(s) in Week 8:
+
+1. PLTR weekly_pct: expected 1.62, got 1.57
+
+Review automation script.

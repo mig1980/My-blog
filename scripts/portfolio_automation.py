@@ -3,13 +3,20 @@
 GenAi Chosen Portfolio - Weekly Automation Script
 
 Workflow:
-0. Check API status (Finnhub, Marketstack, Azure OpenAI connectivity)
-1. Fetch prices from APIs (Finnhub primary, Marketstack fallback)
+0. Check API status (Finnhub, yfinance, Azure OpenAI connectivity)
+1. Fetch prices from APIs (Finnhub primary, yfinance fallback for stocks)
 2. Calculate all metrics (stocks, portfolio, benchmarks, normalized chart)
 3. Generate visual components (performance table and chart) using Python
 4. Validate calculations (Prompt A - runs when AI enabled)
 5. Generate narrative content (Prompt B)
 6. Assemble final HTML page (Prompt D)
+
+Data Sources:
+- Portfolio Stocks: Finnhub (primary) → yfinance (fallback) - both free
+- S&P 500: yfinance (primary) → Marketstack (fallback)
+- Bitcoin: Finnhub (primary) → yfinance (fallback)
+- Research Candidates (price/momentum/volume): yfinance (primary) → Marketstack (fallback)
+- Fundamentals enrichment: yfinance (free, unlimited)
 
 Note: Prompt-VisualGeneration (formerly Prompt C) eliminated - visual generation now handled by deterministic Python code
 
@@ -44,6 +51,28 @@ try:
 except ImportError:
     YahooFinanceEnricher = None  # type: ignore  # Optional dependency
 
+# Import yfinance for stock price fallback (free, unlimited)
+try:
+    import yfinance as yf
+
+    YFINANCE_AVAILABLE = True
+except ImportError:
+    yf = None
+    YFINANCE_AVAILABLE = False
+
+# Import centralized configuration constants
+from config import (
+    CHART_HEIGHT,
+    CHART_PAD_BOTTOM,
+    CHART_PAD_LEFT,
+    CHART_PAD_RIGHT,
+    CHART_PAD_TOP,
+    CHART_WIDTH,
+    CHART_Y_POSITIONS,
+    FINNHUB_MIN_INTERVAL,
+    MARKETSTACK_MIN_INTERVAL,
+)
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -73,18 +102,8 @@ CSP_POLICY_TEMPLATE = (
     "form-action 'self';"
 )
 
-# Chart rendering constants (normalized performance chart)
-CHART_WIDTH = 900
-CHART_HEIGHT = 400
-CHART_PAD_LEFT = 80
-CHART_PAD_RIGHT = 50
-CHART_PAD_TOP = 50
-CHART_PAD_BOTTOM = 50
-# Y-axis scale: normalized baseline 100 ± 20
-CHART_Y_MIN = 80
-CHART_Y_MAX = 120
-CHART_Y_LABELS = [120, 110, 100, 90, 80]
-CHART_Y_POSITIONS = [50, 125, 200, 275, 350]  # SVG y-coordinates for labels
+# Chart rendering constants imported from config.py:
+# CHART_WIDTH, CHART_HEIGHT, CHART_PAD_*, CHART_Y_*
 
 
 class PortfolioAutomation:
@@ -98,6 +117,7 @@ class PortfolioAutomation:
         finnhub_key=None,
         eval_date=None,
         palette="default",
+        force_research=False,
     ):
         # Configuration
         self.existing_weeks = None  # Initialize before detect_next_week() call
@@ -123,6 +143,9 @@ class PortfolioAutomation:
 
         # Evaluation date
         self.eval_date = None
+
+        # Force research regeneration flag
+        self.force_research = force_research
 
         # Configure HTTP session with retry logic
         self.session = requests.Session()
@@ -171,24 +194,30 @@ class PortfolioAutomation:
 
         # Log data source status
         if self.finnhub_key:
-            logging.info(f"✓ Finnhub enabled as PRIMARY (key: {self.finnhub_key[:8]}..., 50 calls/min limit)")
+            logging.info(
+                f"✓ Finnhub enabled as PRIMARY for stocks (key: {self.finnhub_key[:8]}..., 50 calls/min limit)"
+            )
+        if YFINANCE_AVAILABLE:
+            logging.info("✓ yfinance enabled as FALLBACK for stocks + PRIMARY for S&P 500 (free, unlimited)")
+        else:
+            logging.warning("⚠ yfinance not installed - stock price fallback unavailable")
         if self.marketstack_key:
             logging.info(
-                f"✓ Marketstack enabled as SECONDARY FALLBACK (key: {self.marketstack_key[:8]}..., 100 calls/month free tier)"
+                f"✓ Marketstack enabled as FALLBACK for S&P 500 (key: {self.marketstack_key[:8]}..., 100 calls/month free tier)"
             )
         if not self.ai_enabled:
             logging.warning("⚠ Data-only mode: Will abort after data fetch (no narrative generation)")
 
         # Finnhub rate limiting: 50 requests/minute = 1 request per 1.2 seconds
-        # Using 1.3 seconds as safety margin to stay under limit
+        # Rate limits configured in config.py
         self.last_finnhub_call = 0  # timestamp of last Finnhub API call
-        self.finnhub_min_interval = 1.3  # seconds between Finnhub calls (50/min = 1.2s, using 1.3s for safety)
+        self.finnhub_min_interval = FINNHUB_MIN_INTERVAL
         self.finnhub_call_count = 0  # Track total calls for logging
 
         # Marketstack rate limiting: Free tier = 100 req/month, no per-minute limit documented
-        # Using 2 second delay as conservative approach for secondary fallback
+        # Rate limits configured in config.py
         self.last_marketstack_call = 0
-        self.marketstack_min_interval = 2.0
+        self.marketstack_min_interval = MARKETSTACK_MIN_INTERVAL
         self.marketstack_call_count = 0
 
         # Execution report tracking (initialize before load_prompts)
@@ -743,7 +772,11 @@ Return a validation report (PASS or FAIL with details).
             logging.info("Marketstack: Testing connection...")
             try:
                 url = "http://api.marketstack.com/v1/eod/latest"
-                params = {"access_key": self.marketstack_key, "symbols": "AAPL", "limit": 1}
+                params = {
+                    "access_key": self.marketstack_key,
+                    "symbols": "AAPL",
+                    "limit": 1,
+                }
                 response = self.session.get(url, params=params, timeout=10)
                 response.raise_for_status()
                 data = response.json()
@@ -907,7 +940,11 @@ Return a validation report (PASS or FAIL with details).
 
         # Use HTTP for free tier (HTTPS requires paid plan)
         url = "http://api.marketstack.com/v1/eod/latest"
-        params = {"access_key": self.marketstack_key, "symbols": symbol, "limit": 1}  # Only need latest data point
+        params = {
+            "access_key": self.marketstack_key,
+            "symbols": symbol,
+            "limit": 1,
+        }  # Only need latest data point
 
         try:
             self.last_marketstack_call = time.time()
@@ -976,6 +1013,51 @@ Return a validation report (PASS or FAIL with details).
             return None
         except Exception as e:
             logging.warning(f"Marketstack fetch failed for {symbol}: {e}")
+            return None
+
+    # ===================== YFINANCE DATA FETCHER (FALLBACK) =====================
+    def _fetch_yfinance_quote(self, symbol):
+        """Fetch latest quote for a stock from Yahoo Finance (yfinance).
+
+        FREE and UNLIMITED - No API key required!
+        Used as fallback when Finnhub fails.
+
+        Returns dict with date, close price, and source, or None on failure.
+        """
+        if not YFINANCE_AVAILABLE:
+            logging.warning("yfinance not installed - fallback unavailable")
+            return None
+
+        try:
+            # Small courtesy delay to avoid hammering Yahoo servers
+            time.sleep(0.5)
+
+            ticker = yf.Ticker(symbol)
+            info = ticker.info
+
+            # Get current/regular market price
+            price = info.get("regularMarketPrice") or info.get("currentPrice")
+            if price is None or price == 0:
+                logging.warning(f"yfinance returned no price for {symbol}")
+                return None
+
+            # Get the date from regularMarketTime or use latest market date
+            market_time = info.get("regularMarketTime")
+            if market_time:
+                try:
+                    date_clean = datetime.fromtimestamp(market_time, tz=timezone.utc).strftime("%Y-%m-%d")
+                except Exception:
+                    date_clean = self._latest_market_date()
+            else:
+                date_clean = self._latest_market_date()
+
+            return {
+                "date": date_clean,
+                "close": float(price),
+                "source": "yfinance",
+            }
+        except Exception as e:
+            logging.warning(f"yfinance fetch failed for {symbol}: {e}")
             return None
 
     # ===================== FINNHUB DATA FETCHERS =====================
@@ -1097,8 +1179,8 @@ Return a validation report (PASS or FAIL with details).
 
         tickers = [s["ticker"] for s in self.master_json["stocks"]]
         logging.info(f"Fetching prices for {len(tickers)} stocks + 2 benchmarks")
-        logging.info("API Priority: Finnhub (primary) → Marketstack (secondary)")
-        logging.info("Rate limiting: Finnhub 50 req/min (1.3s), Marketstack 2s delay")
+        logging.info("API Priority: Finnhub (primary) → yfinance (fallback)")
+        logging.info("Rate limiting: Finnhub 50 req/min (1.3s), yfinance 0.5s courtesy delay")
 
         # Fetch stock prices with rate limiting (50 req/min = 1.3 sec between calls for Finnhub)
         price_data = {}
@@ -1113,12 +1195,12 @@ Return a validation report (PASS or FAIL with details).
                 if quote:
                     logging.info(f"  ✓ {ticker}: ${quote['close']:.2f} on {quote['date']} (Finnhub)")
 
-            # Fallback to Marketstack if Finnhub fails
-            if not quote and self.marketstack_key:
-                logging.info(f"  ⟳ Finnhub failed, trying Marketstack for {ticker}...")
-                quote = self._fetch_marketstack_quote(ticker)
+            # Fallback to yfinance if Finnhub fails (free, unlimited)
+            if not quote:
+                logging.info(f"  ⟳ Finnhub failed, trying yfinance for {ticker}...")
+                quote = self._fetch_yfinance_quote(ticker)
                 if quote:
-                    logging.info(f"  ✓ {ticker}: ${quote['close']:.2f} on {quote['date']} (Marketstack fallback)")
+                    logging.info(f"  ✓ {ticker}: ${quote['close']:.2f} on {quote['date']} (yfinance fallback)")
 
             if quote:
                 price_data[ticker] = quote
@@ -1126,7 +1208,7 @@ Return a validation report (PASS or FAIL with details).
             else:
                 # Critical failure - cannot proceed without current prices
                 raise ValueError(
-                    f"Failed to fetch price for {ticker} from all sources (Finnhub, Marketstack). Cannot generate accurate portfolio data."
+                    f"Failed to fetch price for {ticker} from all sources (Finnhub, yfinance). Cannot generate accurate portfolio data."
                 )
 
             # Rate limiting handled by individual fetch methods (Finnhub: 1.3s, Marketstack: 2s)
@@ -1174,8 +1256,8 @@ Return a validation report (PASS or FAIL with details).
 
         # Benchmarks: Fetch based on configuration from master.json
         logging.info("Fetching benchmarks...")
-        logging.info("S&P 500 Priority: Marketstack (primary) → Finnhub (fallback)")
-        logging.info("Bitcoin: Finnhub only (BINANCE:BTCUSDT)")
+        logging.info("S&P 500 Priority: yfinance (primary) → Marketstack (fallback)")
+        logging.info("Bitcoin Priority: Finnhub (primary) → yfinance (fallback)")
         bench_data = {}
         bench_sources = {}  # Track source for each benchmark
 
@@ -1190,34 +1272,39 @@ Return a validation report (PASS or FAIL with details).
             quote = None
 
             if bench_key == "sp500":
-                # Try Marketstack first for S&P 500 (primary source)
-                if self.marketstack_key:
+                # Try yfinance first for S&P 500 (primary source - free, unlimited)
+                quote = self._fetch_yfinance_quote("^GSPC")
+                if quote:
+                    logging.info(f"  ✓ S&P 500: ${quote['close']:.2f} on {quote['date']} (yfinance)")
+                else:
+                    logging.warning(f"  ⟳ yfinance failed for S&P 500, trying Marketstack...")
+
+                # Fallback to Marketstack
+                if not quote and self.marketstack_key:
                     quote = self._fetch_marketstack_quote(bench_symbol)
                     if quote:
-                        logging.info(f"  ✓ S&P 500: ${quote['close']:.2f} on {quote['date']} (Marketstack)")
-                    else:
-                        logging.warning(f"  ⟳ Marketstack failed for S&P 500, trying Finnhub...")
-
-                # Fallback to Finnhub (using ^GSPC symbol)
-                if not quote and self.finnhub_key:
-                    quote = self._fetch_finnhub_quote("^GSPC")
-                    if quote:
-                        logging.info(f"  ✓ S&P 500: ${quote['close']:.2f} on {quote['date']} (Finnhub fallback)")
+                        logging.info(f"  ✓ S&P 500: ${quote['close']:.2f} on {quote['date']} (Marketstack fallback)")
 
                 if not quote:
-                    raise ValueError(f"Failed to fetch S&P 500 price from all sources (Marketstack, Finnhub)")
+                    raise ValueError(f"Failed to fetch S&P 500 price from all sources (yfinance, Marketstack)")
 
             elif bench_key == "bitcoin":
-                # Finnhub for Bitcoin (using BINANCE:BTCUSDT)
+                # Finnhub for Bitcoin (primary - using BINANCE:BTCUSDT)
                 if self.finnhub_key:
                     quote = self._fetch_finnhub_crypto("BTC")
                     if quote:
                         logging.info(f"  ✓ Bitcoin: ${quote['close']:.2f} on {quote['date']} (Finnhub)")
                     else:
-                        logging.error(f"  ✗ Finnhub failed for Bitcoin - no fallback available")
+                        logging.warning(f"  ⟳ Finnhub failed for Bitcoin, trying yfinance...")
+
+                # Fallback to yfinance (BTC-USD)
+                if not quote:
+                    quote = self._fetch_yfinance_quote("BTC-USD")
+                    if quote:
+                        logging.info(f"  ✓ Bitcoin: ${quote['close']:.2f} on {quote['date']} (yfinance fallback)")
 
                 if not quote:
-                    raise ValueError(f"Failed to fetch Bitcoin price from Finnhub (no alternative source available)")
+                    raise ValueError(f"Failed to fetch Bitcoin price from all sources (Finnhub, yfinance)")
 
             else:
                 # Other benchmarks: use regular fallback chain
@@ -1473,10 +1560,18 @@ Return a validation report (PASS or FAIL with details).
                     )
                 else:
                     logging.warning("⚠️ research_candidates.json not found after enrichment")
-                    self.add_step("Yahoo Finance Enrichment", "warning", "Candidates file not found")
+                    self.add_step(
+                        "Yahoo Finance Enrichment",
+                        "warning",
+                        "Candidates file not found",
+                    )
             else:
                 logging.warning("⚠️ Yahoo Finance enrichment returned failure status")
-                self.add_step("Yahoo Finance Enrichment", "warning", "Enrichment failed but non-blocking")
+                self.add_step(
+                    "Yahoo Finance Enrichment",
+                    "warning",
+                    "Enrichment failed but non-blocking",
+                )
 
         except Exception as e:
             # Non-blocking: enrichment failure should not stop the pipeline
@@ -1489,12 +1584,50 @@ Return a validation report (PASS or FAIL with details).
 
         This runs BEFORE Prompt B to provide market intelligence for portfolio decisions.
         Uses web search to gather real-time data from reputable financial sources.
+
+        Skip logic: If research_candidates.json already exists with Marketstack enrichment,
+        skip regeneration to save API calls. Use --force-research to override.
         """
         logging.info("Running Prompt-MarketResearch: Market Intelligence Agent...")
 
         try:
             current_week_dir = DATA_DIR / f"W{self.week_number}"
             current_week_dir.mkdir(parents=True, exist_ok=True)
+
+            # Check if research_candidates.json already exists with enrichment
+            candidates_file = current_week_dir / "research_candidates.json"
+            if candidates_file.exists() and not self.force_research:
+                try:
+                    with open(candidates_file, "r", encoding="utf-8") as f:
+                        existing_data = json.load(f)
+
+                    # Check for Marketstack enrichment (indicates full pipeline ran)
+                    enrichment_info = existing_data.get("enrichment", {}).get("marketstack", {})
+                    if enrichment_info:
+                        timestamp = enrichment_info.get("timestamp", "unknown")
+                        enriched_count = enrichment_info.get("enriched", 0)
+                        logging.info(f"✅ research_candidates.json already exists")
+                        logging.info(f"   Enriched with Marketstack on: {timestamp}")
+                        logging.info(f"   Candidates enriched: {enriched_count}")
+                        logging.info(f"   Use --force-research to regenerate")
+
+                        self.add_step(
+                            "Prompt-MarketResearch - Market Intelligence",
+                            "success",
+                            f"Skipped - already exists with {enriched_count} enriched candidates (use --force-research to regenerate)",
+                        )
+                        return existing_data
+
+                    # Check for candidates without enrichment (partial run)
+                    candidates = existing_data.get("candidates", [])
+                    if candidates:
+                        logging.info(f"⚠️ research_candidates.json exists but not enriched")
+                        logging.info(f"   Found {len(candidates)} candidates, will enrich with Marketstack")
+                        # Continue to enrichment step only
+
+                except (json.JSONDecodeError, KeyError) as e:
+                    logging.warning(f"⚠️ Could not parse existing research_candidates.json: {e}")
+                    logging.info("   Will regenerate from scratch")
 
             # Prepare portfolio context for market research
             portfolio_summary = self._extract_portfolio_context_for_research()
@@ -1704,12 +1837,9 @@ Current date: {datetime.now(timezone.utc).strftime('%Y-%m-%d')}
             if candidate_count < 3 or candidate_count > 5:
                 logging.warning(f"⚠️ Generated {candidate_count} candidates (expected 3-5)")
 
-            # Enrich candidates with Marketstack data
-            if self.marketstack_key:
-                logging.info("Enriching candidates with Marketstack API data...")
-                research_candidates = self.enrich_candidates_with_marketstack(research_candidates)
-            else:
-                logging.warning("⚠️ Marketstack not configured - skipping enrichment (using web search estimates)")
+            # Enrich candidates with price/momentum/volume data
+            # Primary: yfinance (free, unlimited) | Fallback: Marketstack
+            research_candidates = self.enrich_candidates_price_momentum(research_candidates)
 
             # Save to file
             output_path = current_week_dir / "research_candidates.json"
@@ -1739,130 +1869,226 @@ Current date: {datetime.now(timezone.utc).strftime('%Y-%m-%d')}
             )
             raise
 
-    def enrich_candidates_with_marketstack(self, research_candidates):
-        """Enrich research candidates with precise data from Marketstack API.
+    def enrich_candidates_price_momentum(self, research_candidates):
+        """Enrich research candidates with price/momentum/volume data.
+
+        Primary: yfinance (free, unlimited)
+        Fallback: Marketstack API
 
         For each candidate:
-        1. Fetch 12 weeks of historical EOD data from Marketstack
+        1. Fetch 12 weeks of historical EOD data
         2. Calculate precise 4-week and 12-week momentum
         3. Get average volume from recent trading days
         4. Update candidate data with precise metrics
-
-        Falls back to web search estimates if API call fails for a ticker.
         """
-        from datetime import datetime, timedelta, timezone
-
         candidates = research_candidates.get("candidates", [])
         if not candidates:
             return research_candidates
 
-        # Calculate date range: 12 weeks back from today
-        today = datetime.now(timezone.utc)
-        date_to = today.strftime("%Y-%m-%d")
-        date_from = (today - timedelta(weeks=12)).strftime("%Y-%m-%d")
-
-        enriched_count = 0
+        yfinance_enriched = 0
+        marketstack_enriched = 0
         failed_tickers = []
+
+        logging.info("Enriching candidates: yfinance (primary) → Marketstack (fallback)")
 
         for candidate in candidates:
             ticker = candidate.get("ticker")
             if not ticker:
                 continue
 
-            try:
-                # Fetch EOD data from Marketstack
-                url = "http://api.marketstack.com/v1/eod"
-                params = {
-                    "access_key": self.marketstack_key,
-                    "symbols": ticker,
-                    "date_from": date_from,
-                    "date_to": date_to,
-                    "limit": 100,  # ~12 weeks = 60 trading days
-                }
-
-                # Respect rate limit (5 requests/second for Marketstack)
-                time.sleep(0.3)  # 0.3s = ~3 requests/sec (safe margin)
-
-                response = self.session.get(url, params=params, timeout=10)
-                response.raise_for_status()
-                data = response.json()
-
-                # Check for API errors
-                if "error" in data:
-                    error_info = data["error"]
-                    logging.warning(
-                        f"  ⚠️ {ticker}: Marketstack API error - {error_info.get('message', 'Unknown error')}"
+            # Try yfinance first (primary)
+            if YFINANCE_AVAILABLE:
+                result = self._enrich_candidate_yfinance(candidate, ticker)
+                if result:
+                    yfinance_enriched += 1
+                    logging.info(
+                        f"  ✓ {ticker}: Enriched via yfinance (4w: {candidate.get('momentum_4w', 'N/A')}, 12w: {candidate.get('momentum_12w', 'N/A')})"
                     )
-                    failed_tickers.append(ticker)
+                    continue
+                else:
+                    logging.debug(f"  {ticker}: yfinance failed, trying Marketstack fallback...")
+
+            # Fallback to Marketstack
+            if self.marketstack_key:
+                result = self._enrich_candidate_marketstack(candidate, ticker)
+                if result:
+                    marketstack_enriched += 1
+                    logging.info(
+                        f"  ✓ {ticker}: Enriched via Marketstack fallback (4w: {candidate.get('momentum_4w', 'N/A')}, 12w: {candidate.get('momentum_12w', 'N/A')})"
+                    )
                     continue
 
-                eod_data = data.get("data", [])
-                if not eod_data or len(eod_data) < 20:  # Need at least 4 weeks
-                    logging.warning(f"  ⚠️ {ticker}: Insufficient data (got {len(eod_data)} days, need 20+)")
-                    failed_tickers.append(ticker)
-                    continue
+            # Both failed
+            failed_tickers.append(ticker)
+            logging.warning(f"  ⚠️ {ticker}: Both yfinance and Marketstack failed (using web search estimates)")
 
-                # Sort by date ascending (oldest first)
-                eod_data.sort(key=lambda x: x.get("date", ""))
-
-                # Calculate momentum
-                latest_price = eod_data[-1].get("close")
-                price_4w_ago = eod_data[-20].get("close") if len(eod_data) >= 20 else None
-                price_12w_ago = eod_data[0].get("close") if len(eod_data) >= 60 else None
-
-                momentum_4w = None
-                momentum_12w = None
-
-                if latest_price and price_4w_ago:
-                    momentum_4w = ((latest_price - price_4w_ago) / price_4w_ago) * 100
-
-                if latest_price and price_12w_ago:
-                    momentum_12w = ((latest_price - price_12w_ago) / price_12w_ago) * 100
-
-                # Calculate average volume (last 20 trading days)
-                recent_volumes = [day.get("volume", 0) for day in eod_data[-20:] if day.get("volume")]
-                avg_volume = sum(recent_volumes) / len(recent_volumes) if recent_volumes else None
-
-                # Update candidate with precise data
-                if latest_price:
-                    candidate["price"] = f"${latest_price:.2f}"
-
-                if momentum_4w is not None:
-                    sign = "+" if momentum_4w >= 0 else ""
-                    candidate["momentum_4w"] = f"{sign}{momentum_4w:.1f}%"
-
-                if momentum_12w is not None:
-                    sign = "+" if momentum_12w >= 0 else ""
-                    candidate["momentum_12w"] = f"{sign}{momentum_12w:.1f}%"
-
-                if avg_volume:
-                    # Format volume (e.g., 5.2M, 1.3M)
-                    if avg_volume >= 1_000_000:
-                        candidate["volume_avg"] = f"{avg_volume / 1_000_000:.1f}M"
-                    elif avg_volume >= 1_000:
-                        candidate["volume_avg"] = f"{avg_volume / 1_000:.1f}K"
-                    else:
-                        candidate["volume_avg"] = f"{avg_volume:.0f}"
-
-                enriched_count += 1
-                logging.info(
-                    f"  ✓ {ticker}: Enriched with Marketstack data (4w: {candidate.get('momentum_4w', 'N/A')}, 12w: {candidate.get('momentum_12w', 'N/A')})"
-                )
-
-            except requests.exceptions.RequestException as e:
-                logging.warning(f"  ⚠️ {ticker}: Marketstack API request failed - {e}")
-                failed_tickers.append(ticker)
-                continue
-            except Exception as e:
-                logging.warning(f"  ⚠️ {ticker}: Enrichment failed - {e}")
-                failed_tickers.append(ticker)
-                continue
-
-        logging.info(f"Marketstack enrichment: {enriched_count}/{len(candidates)} candidates updated")
+        logging.info(f"Candidate enrichment: {yfinance_enriched} via yfinance, {marketstack_enriched} via Marketstack")
         if failed_tickers:
-            logging.warning(f"  ⚠️ Failed tickers (using web search estimates): {', '.join(failed_tickers)}")
+            logging.warning(f"  ⚠️ Failed tickers: {', '.join(failed_tickers)}")
 
         return research_candidates
+
+    def _enrich_candidate_yfinance(self, candidate, ticker):
+        """Enrich a single candidate with yfinance historical data.
+
+        Returns True if successful, False otherwise.
+        """
+        if not YFINANCE_AVAILABLE:
+            return False
+
+        try:
+            import yfinance as yf
+
+            # Small courtesy delay
+            time.sleep(0.5)
+
+            stock = yf.Ticker(ticker)
+
+            # Fetch 12 weeks (~84 days) of history
+            hist = stock.history(period="3mo")  # ~90 days covers 12 weeks
+
+            if hist.empty or len(hist) < 20:
+                logging.debug(f"yfinance: Insufficient data for {ticker} (got {len(hist)} days)")
+                return False
+
+            # Calculate momentum
+            latest_price = hist["Close"].iloc[-1]
+            price_4w_ago = hist["Close"].iloc[-20] if len(hist) >= 20 else None
+            price_12w_ago = hist["Close"].iloc[0] if len(hist) >= 60 else hist["Close"].iloc[0]
+
+            momentum_4w = None
+            momentum_12w = None
+
+            if latest_price and price_4w_ago:
+                momentum_4w = ((latest_price - price_4w_ago) / price_4w_ago) * 100
+
+            if latest_price and price_12w_ago:
+                momentum_12w = ((latest_price - price_12w_ago) / price_12w_ago) * 100
+
+            # Calculate average volume (last 20 trading days)
+            recent_volumes = hist["Volume"].tail(20).tolist()
+            avg_volume = sum(recent_volumes) / len(recent_volumes) if recent_volumes else None
+
+            # Update candidate with precise data
+            if latest_price:
+                candidate["price"] = f"${latest_price:.2f}"
+
+            if momentum_4w is not None:
+                sign = "+" if momentum_4w >= 0 else ""
+                candidate["momentum_4w"] = f"{sign}{momentum_4w:.1f}%"
+
+            if momentum_12w is not None:
+                sign = "+" if momentum_12w >= 0 else ""
+                candidate["momentum_12w"] = f"{sign}{momentum_12w:.1f}%"
+
+            if avg_volume:
+                if avg_volume >= 1_000_000:
+                    candidate["volume_avg"] = f"{avg_volume / 1_000_000:.1f}M"
+                elif avg_volume >= 1_000:
+                    candidate["volume_avg"] = f"{avg_volume / 1_000:.1f}K"
+                else:
+                    candidate["volume_avg"] = f"{avg_volume:.0f}"
+
+            candidate["price_source"] = "yfinance"
+            return True
+
+        except Exception as e:
+            logging.debug(f"yfinance enrichment failed for {ticker}: {e}")
+            return False
+
+    def _enrich_candidate_marketstack(self, candidate, ticker):
+        """Enrich a single candidate with Marketstack historical data.
+
+        Returns True if successful, False otherwise.
+        (Fallback for when yfinance fails)
+        """
+        if not self.marketstack_key:
+            return False
+
+        try:
+            # Calculate date range: 12 weeks back from today
+            today = datetime.now(timezone.utc)
+            date_to = today.strftime("%Y-%m-%d")
+            date_from = (today - timedelta(weeks=12)).strftime("%Y-%m-%d")
+
+            url = "http://api.marketstack.com/v1/eod"
+            params = {
+                "access_key": self.marketstack_key,
+                "symbols": ticker,
+                "date_from": date_from,
+                "date_to": date_to,
+                "limit": 100,
+            }
+
+            # Respect rate limit
+            time.sleep(0.3)
+
+            response = self.session.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+
+            if "error" in data:
+                return False
+
+            eod_data = data.get("data", [])
+            if not eod_data or len(eod_data) < 20:
+                return False
+
+            # Sort by date ascending
+            eod_data.sort(key=lambda x: x.get("date", ""))
+
+            # Calculate momentum
+            latest_price = eod_data[-1].get("close")
+            price_4w_ago = eod_data[-20].get("close") if len(eod_data) >= 20 else None
+            price_12w_ago = eod_data[0].get("close") if len(eod_data) >= 60 else None
+
+            momentum_4w = None
+            momentum_12w = None
+
+            if latest_price and price_4w_ago:
+                momentum_4w = ((latest_price - price_4w_ago) / price_4w_ago) * 100
+
+            if latest_price and price_12w_ago:
+                momentum_12w = ((latest_price - price_12w_ago) / price_12w_ago) * 100
+
+            # Calculate average volume
+            recent_volumes = [day.get("volume", 0) for day in eod_data[-20:] if day.get("volume")]
+            avg_volume = sum(recent_volumes) / len(recent_volumes) if recent_volumes else None
+
+            # Update candidate
+            if latest_price:
+                candidate["price"] = f"${latest_price:.2f}"
+
+            if momentum_4w is not None:
+                sign = "+" if momentum_4w >= 0 else ""
+                candidate["momentum_4w"] = f"{sign}{momentum_4w:.1f}%"
+
+            if momentum_12w is not None:
+                sign = "+" if momentum_12w >= 0 else ""
+                candidate["momentum_12w"] = f"{sign}{momentum_12w:.1f}%"
+
+            if avg_volume:
+                if avg_volume >= 1_000_000:
+                    candidate["volume_avg"] = f"{avg_volume / 1_000_000:.1f}M"
+                elif avg_volume >= 1_000:
+                    candidate["volume_avg"] = f"{avg_volume / 1_000:.1f}K"
+                else:
+                    candidate["volume_avg"] = f"{avg_volume:.0f}"
+
+            candidate["price_source"] = "marketstack"
+            return True
+
+        except Exception as e:
+            logging.debug(f"Marketstack enrichment failed for {ticker}: {e}")
+            return False
+
+    def enrich_candidates_with_marketstack(self, research_candidates):
+        """DEPRECATED: Use enrich_candidates_price_momentum() instead.
+
+        Kept for backward compatibility - now just calls the new method.
+        """
+        logging.warning("enrich_candidates_with_marketstack() is deprecated, using enrich_candidates_price_momentum()")
+        return self.enrich_candidates_price_momentum(research_candidates)
 
     def _extract_portfolio_context_for_research(self):
         """Extract portfolio summary for Prompt-MarketResearch
@@ -1886,7 +2112,10 @@ Current date: {datetime.now(timezone.utc).strftime('%Y-%m-%d')}
                     "ticker": ticker,
                     "name": stock.get("name", ""),
                     "current_value": current_value,
-                    "weight_pct": round((current_value / portfolio_totals.get("current_value", 1)) * 100, 2),
+                    "weight_pct": round(
+                        (current_value / portfolio_totals.get("current_value", 1)) * 100,
+                        2,
+                    ),
                 }
             )
 
@@ -2018,10 +2247,32 @@ Current date: {datetime.now(timezone.utc).strftime('%Y-%m-%d')}
                 "candidate_count": len(research_candidates.get("candidates", [])),
                 "candidates": [
                     {
+                        # Core identification
                         "ticker": c.get("ticker"),
                         "name": c.get("name"),
                         "sector": c.get("sector"),
+                        "industry": c.get("industry"),
+                        # Price/momentum (from price enrichment)
+                        "price": c.get("price", "N/A"),
                         "momentum_4w": c.get("momentum_4w", "N/A"),
+                        "momentum_12w": c.get("momentum_12w", "N/A"),
+                        # Fundamentals (from yfinance enrichment)
+                        "pe_ratio_forward": c.get("pe_ratio_forward"),
+                        "peg_ratio": c.get("peg_ratio"),
+                        "profit_margin_pct": c.get("profit_margin_pct"),
+                        "roe_pct": c.get("roe_pct"),
+                        "revenue_growth_yoy": c.get("revenue_growth_yoy"),
+                        "earnings_growth_yoy": c.get("earnings_growth_yoy"),
+                        "earnings_growth_quarterly": c.get("earnings_growth_quarterly"),
+                        # Analyst sentiment
+                        "analyst_rating": c.get("analyst_rating"),
+                        "analyst_rating_label": c.get("analyst_rating_label"),
+                        "analyst_target_price": c.get("analyst_target_price"),
+                        "analyst_upside_pct": c.get("analyst_upside_pct"),
+                        # Ownership/risk
+                        "institutional_ownership_pct": c.get("institutional_ownership_pct"),
+                        "short_interest_pct": c.get("short_interest_pct"),
+                        # AI-generated context
                         "catalyst": c.get("catalyst", ""),
                         "rationale": c.get("rationale", ""),
                         "recommendation": c.get("recommendation", ""),
@@ -2091,7 +2342,11 @@ Produce all three files immediately using ONLY the data provided above. Do NOT a
                     self.narrative_html = html_match.group(1)
                 else:
                     # Last resort: try finding any <div> ... </div> block (greedy)
-                    html_match = re.search(r'(<div\s[^>]*class="prose[^"]*"[^>]*>.*?</div>)', response, re.DOTALL)
+                    html_match = re.search(
+                        r'(<div\s[^>]*class="prose[^"]*"[^>]*>.*?</div>)',
+                        response,
+                        re.DOTALL,
+                    )
                     if html_match:
                         self.narrative_html = html_match.group(1)
                     else:
@@ -2127,7 +2382,11 @@ Produce all three files immediately using ONLY the data provided above. Do NOT a
             # Extract decision_summary.json (Priority 2 - tracking enhancement)
             decision_summary = None
             # Look for decision_summary.json block in response
-            decision_match = re.search(r"decision_summary\.json[:\s]*```json\s*({.*?})\s*```", response, re.DOTALL)
+            decision_match = re.search(
+                r"decision_summary\.json[:\s]*```json\s*({.*?})\s*```",
+                response,
+                re.DOTALL,
+            )
             if decision_match:
                 try:
                     decision_summary = json.loads(decision_match.group(1))
@@ -3080,7 +3339,7 @@ Generate ONLY the body content now (header template, main section, footer templa
                     "output_file": str(output_path),
                     "file_size": f"{len(final_html):,} bytes",
                     "validation": "passed",
-                    "warnings": len(validation_result["warnings"]) if validation_result else 0,
+                    "warnings": (len(validation_result["warnings"]) if validation_result else 0),
                 },
             )
 
@@ -3265,7 +3524,11 @@ Generate ONLY the body content now (header template, main section, footer templa
         # Validate JSON-LD structured data
         if 'type="application/ld+json"' in html:
             try:
-                jsonld_match = re.search(r'<script type="application/ld\+json">(.*?)</script>', html, re.DOTALL)
+                jsonld_match = re.search(
+                    r'<script type="application/ld\+json">(.*?)</script>',
+                    html,
+                    re.DOTALL,
+                )
                 if jsonld_match:
                     json.loads(jsonld_match.group(1))  # Validate JSON
             except json.JSONDecodeError:
@@ -3351,8 +3614,6 @@ Generate ONLY the body content now (header template, main section, footer templa
             curr_date = portfolio_current.get("date", "")
 
             # Parse dates for display
-            from datetime import datetime
-
             prev_date_obj = datetime.strptime(prev_date, "%Y-%m-%d")
             curr_date_obj = datetime.strptime(curr_date, "%Y-%m-%d")
 
@@ -3472,7 +3733,11 @@ Generate ONLY the body content now (header template, main section, footer templa
             all_values = []
             for entry in normalized_data:
                 all_values.extend(
-                    [entry.get("genai_norm", 100), entry.get("spx_norm", 100), entry.get("btc_norm", 100)]
+                    [
+                        entry.get("genai_norm", 100),
+                        entry.get("spx_norm", 100),
+                        entry.get("btc_norm", 100),
+                    ]
                 )
             data_min = min(all_values)
             data_max = max(all_values)
@@ -3514,8 +3779,6 @@ Generate ONLY the body content now (header template, main section, footer templa
                 btc_points.append(f"{x:.1f},{btc_y:.1f}")
 
             # Generate X-axis labels (dates) - Week 5 style
-            from datetime import datetime
-
             x_labels_html = []
             for idx in range(len(normalized_data)):
                 entry = normalized_data[idx]
@@ -3979,7 +4242,9 @@ Generate ONLY the body content now (header template, main section, footer templa
                 logging.info(f"✓ Week {self.week_number} data already exists in master.json (date: {new_date})")
                 logging.info("Skipping data fetching - continuing with narrative generation")
                 self.add_step(
-                    "Load Master Data", "success", f"Week {self.week_number} data already present, skipping fetch"
+                    "Load Master Data",
+                    "success",
+                    f"Week {self.week_number} data already present, skipping fetch",
                 )
             else:
                 # Cache validated date for use throughout pipeline
@@ -3993,8 +4258,8 @@ Generate ONLY the body content now (header template, main section, footer templa
                         "success",
                         "Verified API connectivity for all providers",
                         {
-                            "finnhub": "Connected" if api_status["finnhub"]["connected"] else "Not available",
-                            "marketstack": "Connected" if api_status["marketstack"]["connected"] else "Not available",
+                            "finnhub": ("Connected" if api_status["finnhub"]["connected"] else "Not available"),
+                            "marketstack": ("Connected" if api_status["marketstack"]["connected"] else "Not available"),
                             "azure_openai": (
                                 "Connected"
                                 if api_status["azure_openai"]["connected"]
@@ -4007,7 +4272,11 @@ Generate ONLY the body content now (header template, main section, footer templa
                         },
                     )
                 except Exception as e:
-                    self.add_step("Check API Status", "error", f"API connectivity check failed: {str(e)}")
+                    self.add_step(
+                        "Check API Status",
+                        "error",
+                        f"API connectivity check failed: {str(e)}",
+                    )
                     raise
 
                 # Step 1: Data acquisition and calculation (MUST succeed or abort)
@@ -4039,8 +4308,16 @@ Generate ONLY the body content now (header template, main section, footer templa
                 current_week_dir = DATA_DIR / f"W{self.week_number}"
                 with open(current_week_dir / "performance_chart.svg", "r", encoding="utf-8") as f:
                     self.performance_chart = f.read()
-                self.add_step("Generate Performance Table", "success", "Loaded existing performance table")
-                self.add_step("Generate Performance Chart", "success", "Loaded existing performance chart")
+                self.add_step(
+                    "Generate Performance Table",
+                    "success",
+                    "Loaded existing performance table",
+                )
+                self.add_step(
+                    "Generate Performance Chart",
+                    "success",
+                    "Loaded existing performance chart",
+                )
 
             # Step 4: Market Research (requires AI with web search)
             if self.ai_enabled:
@@ -4189,6 +4466,11 @@ def main():
         default="default",
         help="Palette theme to apply (default, alt). Injects data-theme attribute and enables alt CSS variables.",
     )
+    parser.add_argument(
+        "--force-research",
+        action="store_true",
+        help="Force regeneration of research_candidates.json even if it already exists with Marketstack enrichment",
+    )
 
     args = parser.parse_args()
 
@@ -4203,6 +4485,7 @@ def main():
         finnhub_key=args.finnhub_key,
         eval_date=args.eval_date,
         palette=args.palette,
+        force_research=args.force_research,
     )
     automation.run()
 

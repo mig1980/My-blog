@@ -118,22 +118,34 @@ Prioritize stocks meeting ALL of these criteria:
    - Trading above 50-day moving average
    - Relative strength vs sector peers
 
-2. **Fundamental Quality**:
-   - Positive earnings revisions or strong recent earnings beat
+2. **Fundamental Quality** (from yfinance enrichment):
+   - Strong earnings growth (quarterly >15%, annual >10%)
    - Revenue growth >15% YoY (for growth stocks)
-   - Institutional ownership >40%
+   - Healthy profit margins (>10% for tech, >5% for industrials)
+   - ROE >15% indicates efficient capital deployment
+   - PEG ratio <2.0 suggests reasonable growth-adjusted valuation
 
-3. **Liquidity**:
+3. **Analyst Sentiment** (from yfinance enrichment):
+   - Analyst rating ≤2.5 (Buy or Strong Buy)
+   - Positive analyst upside (target > current price)
+   - Adequate analyst coverage (>5 analysts)
+
+4. **Ownership & Risk** (from yfinance enrichment):
+   - Institutional ownership >40%
+   - Short interest <10% (avoid heavily shorted names unless squeeze thesis)
+   - Beta aligned with portfolio risk tolerance
+
+5. **Liquidity**:
    - Average daily volume >1M shares
    - Market cap >$2B
    - Tight bid-ask spreads
 
-4. **Thematic Alignment**:
+6. **Thematic Alignment**:
    - Fits within sector diversification limits (≤45% any sector)
    - Exposure to secular growth themes (AI, semiconductor, infrastructure, energy transition)
    - Complements existing portfolio exposures (avoid redundancy)
 
-5. **Portfolio Fit**:
+7. **Portfolio Fit**:
    - Would bring portfolio to 6–10 total positions (avoid over-diversification)
    - Sufficient capital to establish meaningful 8–12% position ($800–$1,200+)
    - Not duplicative of existing holdings
@@ -141,11 +153,12 @@ Prioritize stocks meeting ALL of these criteria:
 ### Integration with Prompt-MarketResearch
 
 **Prompt B receives `research_candidates.json` from Prompt-MarketResearch every week**, containing 3–5 pre-screened stock candidates with:
-- Ticker, name, price, sector
+- Ticker, name, price, sector, industry
 - 4-week and 12-week momentum stats
-- Market cap, volume, institutional ownership
-- Recent catalyst (earnings, analyst upgrade, technical breakout)
-- Rationale for why it fits portfolio criteria
+- **Fundamentals**: P/E ratio, PEG ratio, profit margins, ROE, revenue/earnings growth
+- **Analyst sentiment**: rating (1-5), target price, upside %, analyst count
+- **Ownership/risk**: institutional ownership %, short interest %, beta
+- Recent catalyst and rationale for fit
 
 **How Prompt B Uses This Data**:
 
@@ -161,7 +174,7 @@ Prioritize stocks meeting ALL of these criteria:
 - Compare exited positions vs new positions using Prompt-MarketResearch data
 - Show quantitative selection process (momentum, quality, fit)
 
-**Example Prompt-MarketResearch Output Structure**:
+**Example research_candidates.json Structure** (after yfinance enrichment):
 ```json
 {
   "scan_date": "2025-11-20",
@@ -175,12 +188,23 @@ Prioritize stocks meeting ALL of these criteria:
       "ticker": "AVGO",
       "name": "Broadcom Inc.",
       "price": "$176.50",
-      "sector": "Technology - Semiconductors",
+      "sector": "Technology",
+      "industry": "Semiconductors",
       "momentum_4w": "+18.2%",
       "momentum_12w": "+35.7%",
-      "market_cap": "$450B",
-      "volume_avg": "4.2M shares/day",
-      "institutional_ownership": "72%",
+      "pe_ratio_forward": 28.5,
+      "peg_ratio": 1.45,
+      "profit_margin_pct": 24.5,
+      "roe_pct": 27.1,
+      "revenue_growth_yoy": 16.4,
+      "earnings_growth_yoy": 22.1,
+      "earnings_growth_quarterly": 18.5,
+      "analyst_rating": 1.8,
+      "analyst_rating_label": "Buy",
+      "analyst_target_price": 195.0,
+      "analyst_upside_pct": 10.5,
+      "institutional_ownership_pct": 72.5,
+      "short_interest_pct": 1.2,
       "catalyst": "Q4 earnings beat by 12%, raised AI chip guidance",
       "rationale": "Top 3 SMH holding, superior momentum vs current tech positions, AI infrastructure exposure"
     }
@@ -446,10 +470,11 @@ Your narrative must follow this structure, adapting sections based on HOLD vs RE
    - 1 paragraph introduction:
      > "While the current portfolio warrants a HOLD, our weekly market scan identified several momentum leaders that merit attention for future consideration:"
    - `ul` with 3–5 candidates from `research_candidates.json`:
-     - Each bullet: **Stock Name (TICKER) - $Price**: Brief rationale (momentum stats, catalyst, thematic fit, why it's attractive)
+     - Each bullet: **Stock Name (TICKER) - $Price**: Brief rationale using enriched data
+     - Include: momentum stats, analyst rating, institutional ownership, key fundamental (ROE or margins), catalyst
      - Example:
        ```html
-       <li><strong>Broadcom (AVGO) - $176.50</strong>: Top 3 SMH holding with +18% four-week momentum and 12% earnings beat. Strong institutional support (72% ownership) and AI infrastructure exposure. Would complement existing semiconductor positions if rotation opportunities arise.</li>
+       <li><strong>Broadcom (AVGO) - $176.50</strong>: Strong Buy rating (1.8/5) with +18% four-week momentum and +22% quarterly earnings growth. Analyst target of $195 implies 10.5% upside. Institutional ownership at 72.5% with minimal short interest (1.2%). ROE of 27% indicates efficient capital deployment. Would complement existing semiconductor positions if rotation opportunities arise.</li>
        ```
    - 1 paragraph conclusion explaining these are watchlist stocks, not current purchases
 
@@ -458,7 +483,9 @@ Your narrative must follow this structure, adapting sections based on HOLD vs RE
    - **For exits**: 1 paragraph explaining why each position was exited (drawdown trigger, sub-scale, weak momentum)
    - **For replacements**: Bullet list from `research_candidates.json` explaining why selected:
      - Momentum comparison vs exited position
-     - Fundamental quality (earnings, growth, ownership)
+     - Analyst sentiment (rating, upside potential)
+     - Fundamental quality (earnings growth, ROE, profit margins, PEG ratio)
+     - Ownership profile (institutional %, short interest)
      - Thematic/sector fit
      - Expected contribution to portfolio
    - **For consolidation**: 1 paragraph explaining portfolio concentration strategy

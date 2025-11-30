@@ -2,6 +2,16 @@
 
 Comprehensive guide to all automation scripts in the portfolio management system.
 
+## 🔌 Data Sources Summary
+
+| Data Point | Primary Source | Fallback Source | Notes |
+|------------|----------------|-----------------|-------|
+| **Portfolio Stock Prices** | Finnhub | yfinance | Both free, real-time/EOD |
+| **S&P 500 (^GSPC)** | yfinance | Marketstack | yfinance unlimited, Marketstack limited |
+| **Bitcoin (BTC)** | Finnhub | yfinance | Finnhub: `BINANCE:BTCUSDT`, yfinance: `BTC-USD` |
+| **Candidate Prices/Momentum/Volume** | yfinance | Marketstack | 12-week historical for momentum calc |
+| **Candidate Fundamentals** | yfinance | - | P/E, margins, ROE, growth, etc. |
+
 ## 📋 Table of Contents
 
 - [Core Scripts](#core-scripts)
@@ -93,7 +103,7 @@ python scripts/yfinance_enrichment.py --week 8
 - No API key required ✅
 
 #### Output
-Enriches `Data/W{n}/research_candidates.json` with 20-25 fields per candidate:
+Enriches `Data/W{n}/research_candidates.json` with 30+ fields per candidate:
 
 ```json
 {
@@ -101,18 +111,47 @@ Enriches `Data/W{n}/research_candidates.json` with 20-25 fields per candidate:
   "sector": "Technology",
   "industry": "Semiconductors",
   "pe_ratio_forward": 65.31,
+  "peg_ratio": 1.45,
   "roe_pct": 27.08,
+  "profit_margin_pct": 24.5,
+  "gross_margin_pct": 62.3,
   "revenue_growth_yoy": 16.4,
-  "debt_equity_ratio": 1.66
+  "earnings_growth_yoy": 22.1,
+  "earnings_growth_quarterly": 18.5,
+  "debt_equity_ratio": 1.66,
+  "current_ratio": 2.1,
+  "quick_ratio": 1.8,
+  "free_cashflow_millions": 4250.0,
+  "institutional_ownership_pct": 72.5,
+  "analyst_rating": 1.8,
+  "analyst_rating_label": "Buy",
+  "analyst_target_price": 195.00,
+  "analyst_upside_pct": 12.5,
+  "short_interest_pct": 1.2,
+  "beta": 1.15,
+  "year_high": 198.50,
+  "year_low": 125.30
 }
 ```
+
+#### Field Categories
+| Category | Fields |
+|----------|--------|
+| **Company** | sector, industry, description, employees, website, country |
+| **Valuation** | pe_ratio_forward, pe_ratio, pb_ratio, peg_ratio, market_cap, enterprise_value_billions |
+| **Profitability** | profit_margin_pct, gross_margin_pct, operating_margin_pct, roe_pct, roa_pct |
+| **Growth** | revenue_growth_yoy, earnings_growth_yoy, earnings_growth_quarterly |
+| **Financial Health** | debt_equity_ratio, current_ratio, quick_ratio, cash_millions, debt_millions, free_cashflow_millions |
+| **Analyst Sentiment** | analyst_rating (1-5), analyst_rating_label, analyst_target_price, analyst_upside_pct, analyst_count |
+| **Ownership/Risk** | institutional_ownership_pct, short_interest_pct, beta |
+| **Price Range** | year_high, year_low, dividend_yield_pct |
 
 #### Logging
 `Data/W{n}/yfinance_enrichment.log`
 
 #### Features
 - Non-blocking: Returns success even if enrichment fails
-- Complements Marketstack (price/momentum)
+- Complements price/momentum enrichment in portfolio_automation.py
 - 0.5s delay between tickers (respectful to Yahoo servers)
 
 ---

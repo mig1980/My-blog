@@ -1,0 +1,61 @@
+{
+  "title": "GenAi-Managed Stocks Portfolio Week 8 \u2013 Performance, Risks & Next Moves - Quantum Investor Digest",
+  "description": "Week 8 performance update of the GenAi-managed high-conviction stock portfolio. Full analysis of returns, benchmark comparison, key movers, risk assessment, and AI-generated positioning insights.",
+  "canonicalUrl": "https://quantuminvestor.net/Posts/GenAi-Managed-Stocks-Portfolio-Week-8.html",
+  "ogTitle": "GenAi-Managed Stocks Portfolio Week 8 \u2013 Performance, Risks & Next Moves",
+  "ogDescription": "Explore Week 8 of the GenAi-managed stock portfolio: performance breakdown, AI-driven signals, benchmark comparison, and forward-looking analysis.",
+  "ogImage": "https://quantuminvestor.net/Media/W8.webp",
+  "ogUrl": "https://quantuminvestor.net/Posts/GenAi-Managed-Stocks-Portfolio-Week-8.html",
+  "twitterTitle": "GenAi-Managed Stocks Portfolio Week 8 \u2013 Performance & Next Moves",
+  "twitterDescription": "AI-managed portfolio Week 8 update: performance, risks, and strategic insights.",
+  "twitterImage": "https://quantuminvestor.net/Media/W8.webp",
+  "twitterCard": "summary_large_image",
+  "jsonLd": {
+    "blogPosting": {
+      "@context": "https://schema.org",
+      "@type": "BlogPosting",
+      "headline": "GenAi-Managed Stocks Portfolio Week 8 \u2013 Performance, Risks & Next Moves",
+      "description": "Full Week 8 performance review of the GenAi-managed aggressive stock portfolio, including benchmark comparisons, key movers, and AI-driven portfolio insights.",
+      "datePublished": "2025-11-28",
+      "dateCreated": "2025-11-28",
+      "dateModified": "2025-11-28",
+      "url": "https://quantuminvestor.net/Posts/GenAi-Managed-Stocks-Portfolio-Week-8.html",
+      "mainEntityOfPage": "https://quantuminvestor.net/Posts/GenAi-Managed-Stocks-Portfolio-Week-8.html",
+      "author": {
+        "@type": "Organization",
+        "name": "Quantum Investor Digest"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "Quantum Investor Digest"
+      },
+      "image": "https://quantuminvestor.net/Media/W8.webp",
+      "articleSection": "Investing",
+      "keywords": "AI investing, stock portfolio, Week 8 performance, S&P 500 comparison, Bitcoin performance, GenAi portfolio"
+    },
+    "breadcrumbList": {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Home",
+          "item": "https://quantuminvestor.net/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Blog",
+          "item": "https://quantuminvestor.net/Posts/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "GenAi-Managed Stocks Portfolio Week 8",
+          "item": "https://quantuminvestor.net/Posts/GenAi-Managed-Stocks-Portfolio-Week-8.html"
+        }
+      ]
+    }
+  }
+}

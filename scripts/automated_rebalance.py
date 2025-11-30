@@ -25,9 +25,14 @@ from typing import Dict, List, Optional
 
 import requests
 
+# Import centralized configuration constants
+from config import MAX_POSITION_PCT, MAX_POSITIONS, MIN_POSITION_VALUE, MIN_POSITIONS
+
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s", handlers=[logging.StreamHandler(sys.stdout)]
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
 )
 
 # Configure paths
@@ -41,11 +46,8 @@ ARCHIVE_DIR = WORKSPACE_ROOT / "master data" / "archive"
 FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY")
 FINNHUB_BASE_URL = "https://finnhub.io/api/v1"
 
-# Portfolio constraints
-MIN_POSITIONS = 6
-MAX_POSITIONS = 10
-MAX_POSITION_PCT = 0.20  # 20% cap
-MIN_POSITION_VALUE = 500  # $500 minimum
+# Portfolio constraints imported from config.py:
+# MIN_POSITIONS, MAX_POSITIONS, MAX_POSITION_PCT, MIN_POSITION_VALUE
 
 
 class PortfolioRebalancer:
@@ -518,7 +520,11 @@ def main():
     """Main entry point"""
     parser = argparse.ArgumentParser(description="Automated portfolio rebalancing based on decision_summary.json")
     parser.add_argument("--week", type=int, required=True, help="Week number to process (e.g., 7)")
-    parser.add_argument("--dry-run", action="store_true", help="Simulate rebalancing without saving changes")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Simulate rebalancing without saving changes",
+    )
 
     args = parser.parse_args()
 
